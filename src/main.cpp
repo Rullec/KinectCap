@@ -2,14 +2,16 @@
 #define GLEW_STATIC
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
-
 #include "utils/MathUtil.h"
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
+#include "kinect_manager.h"
+cKinectManager *manager = nullptr;
 
-const unsigned int gWindowWidth = 308;
-const unsigned int gWindowHeight = 215;
+// const unsigned int gWindowWidth = 308;
+// const unsigned int gWindowHeight = 215;
+unsigned int gWindowWidth = 0;
+unsigned int gWindowHeight = 0;
 int gStartX = 100;
 int gStartY = 100;
 std::string gWindowName = "";
@@ -175,9 +177,49 @@ void UpdateValue(float *data, int comp = 3)
     }
 }
 
+void ConvertDepthImageToRGB(const tMatrixXi &depth_image,
+                            tMatrixXf &R, tMatrixXf &G, tMatrixXf &B)
+{
+    R = depth_image.cast<float>();
+    G.noalias() = G;
+    B.noalias() = B;
+    float max_amp = R.cwiseAbs().maxCoeff();
+    R /= max_amp;
+    G /= max_amp;
+    B /= max_amp;
+}
+
+void ConvertDepthImageToGLRGBTextureBuffer(const tMatrixXi &depth_image, float *buf)
+{
+    float max = depth_image.cwiseAbs().maxCoeff();
+    // int buf_size = gWindowHeight * gWindowWidth * 3;
+    // if (buf.size() != buf_size)
+    //     buf.resize(buf_size, 0.0f);
+    for (int row = 0; row < gWindowHeight; row++)
+    {
+        for (int col = 0; col < gWindowWidth; col++)
+        {
+            int bias = (row * gWindowWidth + col) * 3;
+            float value = float(depth_image(row, col)) / max;
+            buf[bias + 0] = value;
+            buf[bias + 1] = value;
+            buf[bias + 2] = value;
+        }
+    }
+}
+
+void InitKinect()
+{
+    manager = new cKinectManager("nfov_unbinned");
+    tMatrixXi depth_image = manager->GetDepthImage();
+    printf("get depth image size %d %d\n", depth_image.rows(), depth_image.cols());
+    gWindowHeight = depth_image.rows();
+    gWindowWidth = depth_image.cols();
+}
+
 int main()
 {
-    std::cout << "begin to start\n";
+    InitKinect();
     InitGLFW();
     InitGL();
     auto shaderProgram = InitShader();
@@ -201,6 +243,7 @@ int main()
 
         glUseProgram(shaderProgram);
         {
+            ConvertDepthImageToGLRGBTextureBuffer(manager->GetDepthImage(), data);
             UpdateValue(data, 3);
             glBindTexture(GL_TEXTURE_2D, texture);
 

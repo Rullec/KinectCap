@@ -59,8 +59,8 @@ add_subdirectory(./src/utils)
 
 set(libs utils_lib imgui_lib ${GL_LIBS} ${OpenCV_LIBS})
 
-add_executable(main ./src/main.cpp)
-target_link_libraries(main ${libs})
+add_executable(main ./src/main.cpp ./src/kinect_manager.cpp)
+target_link_libraries(main ${libs} k4a)
 
 if(WIN32)
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")

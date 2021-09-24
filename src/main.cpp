@@ -201,7 +201,7 @@ void ConvertDepthImageToGLRGBTextureBuffer(const tMatrixXi &depth_image, float *
         for (int col = 0; col < gWindowWidth; col++)
         {
             int bias = (row * gWindowWidth + col) * 3;
-            float value = float(depth_image(row, col)) / max;
+            float value = float(depth_image(gWindowHeight - 1 - row, col)) / max;
             buf[bias + 0] = value;
             buf[bias + 1] = value;
             buf[bias + 2] = value;
@@ -245,7 +245,7 @@ int main()
         glUseProgram(shaderProgram);
         {
             ConvertDepthImageToGLRGBTextureBuffer(manager->GetDepthImage(), data);
-            UpdateValue(data, 3);
+            // UpdateValue(data, 3);
             glBindTexture(GL_TEXTURE_2D, texture);
 
             glTexSubImage2D(
@@ -357,7 +357,7 @@ unsigned int BindVAO()
 
 float GetPosValue(int row, int col)
 {
-    int bias = (row * gWindowWidth + col) * 3;
+    int bias = ((gWindowHeight - 1 - row) * gWindowWidth + col) * 3;
     return global_data_ptr[bias];
 }
 void MouseMoveEventCallback(GLFWwindow *window, double xpos, double ypos)

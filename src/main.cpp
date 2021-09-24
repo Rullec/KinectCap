@@ -14,6 +14,7 @@ unsigned int gWindowWidth = 0;
 unsigned int gWindowHeight = 0;
 int gStartX = 100;
 int gStartY = 100;
+float *global_data_ptr = nullptr;
 std::string gWindowName = "";
 GLFWwindow *gWindow = nullptr;
 
@@ -183,7 +184,7 @@ void ConvertDepthImageToRGB(const tMatrixXi &depth_image,
     R = depth_image.cast<float>();
     G.noalias() = G;
     B.noalias() = B;
-    float max_amp = R.cwiseAbs().maxCoeff();
+    float max_amp = 1000;
     R /= max_amp;
     G /= max_amp;
     B /= max_amp;
@@ -191,7 +192,7 @@ void ConvertDepthImageToRGB(const tMatrixXi &depth_image,
 
 void ConvertDepthImageToGLRGBTextureBuffer(const tMatrixXi &depth_image, float *buf)
 {
-    float max = depth_image.cwiseAbs().maxCoeff();
+    float max = 1000;
     // int buf_size = gWindowHeight * gWindowWidth * 3;
     // if (buf.size() != buf_size)
     //     buf.resize(buf_size, 0.0f);
@@ -228,7 +229,7 @@ int main()
     GLuint texture;
     // ConvertImageToTexutre(texture);
     float *data = ConvertNoiseToTexture(texture);
-
+    global_data_ptr = data;
     // One time during setup.
     GLuint readFboId = 0;
     glGenFramebuffers(1, &readFboId);
@@ -353,9 +354,23 @@ unsigned int BindVAO()
     glBindVertexArray(0);
     return VAO;
 }
+
+float GetPosValue(int row, int col)
+{
+    int bias = (row * gWindowWidth + col) * 3;
+    return global_data_ptr[bias];
+}
 void MouseMoveEventCallback(GLFWwindow *window, double xpos, double ypos)
 {
     std::cout << "[log] mouse move to " << xpos << " " << ypos << std::endl;
+    if (
+        (xpos >= 0) && (xpos < gWindowWidth) && (ypos >= 0) && (ypos < gWindowHeight)
+
+    )
+    {
+        float depth_m = GetPosValue(ypos, xpos) * 1e3;
+        std::cout << "cur depth = " << depth_m << " mm\n";
+    }
     // gScene->MouseMoveEvent(xpos, ypos);
 }
 

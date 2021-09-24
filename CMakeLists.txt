@@ -33,6 +33,9 @@ if(GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIRS})
 endif()
 
+# find opencv
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS})
 
 # collect gl libs
 set(GL_LIBS ${GLFW3_LIBRARY} ${GLEW_STATIC_LIBRARIES} ${OPENGL_LIBRARIES})
@@ -54,7 +57,7 @@ endif()
 add_subdirectory(./imgui)
 add_subdirectory(./src/utils)
 
-set(libs ${utils_lib} ${imgui_lib} ${GL_LIBS})
+set(libs utils_lib imgui_lib ${GL_LIBS} ${OpenCV_LIBS})
 
 add_executable(main ./src/main.cpp)
 target_link_libraries(main ${libs})

@@ -20,7 +20,6 @@ TimeUtil.cpp
 SysUtil.cpp
 DepthImageSaver.cpp
 )
-
 target_link_libraries(utils_lib JSON)
 
 # spdlog lib version on win32

@@ -217,7 +217,7 @@ void InitKinect()
     gWindowHeight = depth_image.rows();
     gWindowWidth = depth_image.cols();
 }
-
+#include "utils/TimeUtil.hpp"
 int main()
 {
     InitKinect();
@@ -240,6 +240,7 @@ int main()
 
     while (!glfwWindowShouldClose(gWindow))
     {
+        // auto st = cTimeUtil::GetCurrentTime_chrono();
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         glUseProgram(shaderProgram);
@@ -257,6 +258,8 @@ int main()
                           0, 0, gWindowWidth, gWindowHeight,
                           GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
+        // auto ed = cTimeUtil::GetCurrentTime_chrono();
+        // std::cout << "fps = " << int(1.0 / (cTimeUtil::CalcTimeElaspedms(st, ed) * 1e-3)) << std::endl;
         glfwSwapBuffers(gWindow);
         glfwPollEvents();
     }

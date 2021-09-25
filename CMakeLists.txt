@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(KinectCap VERSION 0.1.0)
 
+set(
+    SRC
+    ./src/KinectManager.cpp
+    ./src/Render.cpp
+    ./src/RenderCallback.cpp
+)
 
 # custom cmake scripts
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
@@ -59,7 +65,7 @@ add_subdirectory(./src/utils)
 
 set(libs utils_lib imgui_lib ${GL_LIBS} ${OpenCV_LIBS})
 
-add_executable(main ./src/main.cpp ./src/kinect_manager.cpp)
+add_executable(main ./src/main.cpp ${SRC})
 target_link_libraries(main ${libs} k4a)
 
 if(WIN32)

@@ -1,4 +1,4 @@
-#include "kinect_manager.h"
+#include "KinectManager.h"
 #include <iostream>
 #include <k4a/k4a.h>
 #define SIM_ASSERT assert
@@ -174,7 +174,7 @@ tMatrixXi cKinectManager::GetIrImage()
  *              \end{bmatrix}
  */
 
-tMatrix3d cKinectManager::GetDepthIntrinsicMtx_sdk() const
+tMatrix3d cKinectManager::GetDepthIntrinsicMtx() const
 {
     auto depth_calib = GetDepthCalibration();
     tMatrix3d mat = tMatrix3d::Identity();
@@ -195,7 +195,7 @@ tMatrix3d cKinectManager::GetDepthIntrinsicMtx_sdk() const
  * please check
  * https://docs.opencv.org/2.4.13.7/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#calibratecamera
  */
-tVectorXd cKinectManager::GetDepthIntrinsicDistCoef_sdk() const
+tVectorXd cKinectManager::GetDepthIntrinsicDistCoef() const
 {
     auto depth_calib = GetDepthCalibration();
     tVectorXd res = tVectorXd::Zero(8);
@@ -274,51 +274,8 @@ k4a_calibration_camera_t cKinectManager::GetColorCalibration() const
     }
     return calibration.color_camera_calibration;
 }
-/**
- * \brief               Get intrinsics self
- */
-tMatrix3d cKinectManager::GetDepthIntrinsicMtx_self() const
-{
-    /*
-         k1 k2 p1 p2 k3
-dist : -0.329146, 0.166924, 0.00371129, 0.00137014, -0.0609417
-        fx fy cx cy skew
-cam matrix: , , , , -0.00683854
-    */
-    tMatrix3d mat = tMatrix3d::Identity();
-    mat(0, 0) = 498.417;
-    mat(1, 1) = 499.322;
-    mat(0, 2) = 502.074;
-    mat(1, 2) = 491.664;
-    return mat;
-}
 
-/**
- * \brief               Get intrinsics self
- */
-tVectorXd cKinectManager::GetDepthIntrinsicDistCoef_self() const
-{
-    int size = 8;
-    tVectorXd coef = tVectorXd::Zero(size);
-    /*
-    coming from shining 3d
-    -0.329146, 0.166924, 0.00371129, 0.00137014, -0.0609417
-    */
-    double k1 = -0.329146, k2 = 0.166924, p1 = 0.00371129, p2 = 0.00137014,
-           k3 = -0.0609417;
-
-    // double k1 = -0.35272165, k2 = 0.21301618, p1 = 0.00066491, p2 =
-    // -0.00061842,
-    //        k3 = -0.10257608;
-    coef[0] = k1;
-    coef[1] = k2;
-    coef[2] = p1;
-    coef[3] = p2;
-    coef[4] = k3;
-    return coef;
-}
 #include "utils/DefUtil.h"
-
 /**
  * \brief       get depth mode (string mode)
  */
@@ -520,7 +477,7 @@ tMatrixXi cKinectManager::GetDepthToColorImage() const
 /**
  * \brief           get the intrinsics for color camera
  */
-tMatrix3d cKinectManager::GetColorIntrinsicMtx_sdk() const
+tMatrix3d cKinectManager::GetColorIntrinsicMtx() const
 {
     auto color_calib = GetColorCalibration();
     tMatrix3d mat = tMatrix3d::Identity();
@@ -535,7 +492,7 @@ tMatrix3d cKinectManager::GetColorIntrinsicMtx_sdk() const
 /**
  * \brief           get the intrinsics for color camera
  */
-tVectorXd cKinectManager::GetColorIntrinsicDistCoef_sdk() const
+tVectorXd cKinectManager::GetColorIntrinsicDistCoef() const
 {
     auto color_calib = GetColorCalibration();
     tVectorXd res = tVectorXd::Zero(8);

@@ -1,5 +1,6 @@
 #pragma once
 #include "utils/MathUtil.h"
+#include "utils/DefUtil.h"
 #include <memory>
 #include <k4a/k4a.h>
 
@@ -13,13 +14,11 @@ public:
     virtual tMatrixXi GetIrImage();
     virtual std::string GetDepthMode() const;
     virtual void SetDepthMode(std::string mode);
-    virtual tMatrix3d GetDepthIntrinsicMtx_sdk() const;
-    virtual tVectorXd GetDepthIntrinsicDistCoef_sdk() const;
-    virtual tMatrix3d GetColorIntrinsicMtx_sdk() const;
-    virtual tVectorXd GetColorIntrinsicDistCoef_sdk() const;
+    virtual tMatrix3d GetDepthIntrinsicMtx() const;
+    virtual tVectorXd GetDepthIntrinsicDistCoef() const;
+    virtual tMatrix3d GetColorIntrinsicMtx() const;
+    virtual tVectorXd GetColorIntrinsicDistCoef() const;
 
-    virtual tMatrix3d GetDepthIntrinsicMtx_self() const;
-    virtual tVectorXd GetDepthIntrinsicDistCoef_self() const;
     virtual std::vector<tMatrixXi> GetColorImage() const;
     virtual tMatrixXi GetDepthToColorImage() const;
 
@@ -43,3 +42,4 @@ protected:
     // openni::VideoFrameRef m_irFrame;
     // openni::VideoStream m_irStream;
 };
+SIM_DECLARE_PTR(cKinectManager);

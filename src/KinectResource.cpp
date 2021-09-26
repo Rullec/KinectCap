@@ -105,3 +105,92 @@ void cKinectImageResource::ConvertFromColorImage(k4a_image_t image)
             mData[buffer_idx + 2] = float(image_data[kinect_idx + 0]) / 255;
         }
 }
+#define STB_IMAGE_WRITE_IMPLEMETATION
+#include "utils/stb_image_write.h"
+#include "utils/FileUtil.h"
+std::vector<uint8_t> stb_export_buf;
+
+/**
+ * \brief       
+ *      Input raw_buf, unit is [m]
+ *      Output png, unit is [m * 255.99]
+ * 
+*/
+void ExportDepthToPng(float *raw_buf, int height, int width, int buf_channels, std::string output_name)
+{
+    if (cFileUtil::ValidateFilePath(output_name) == false)
+    {
+        SIM_ERROR("invalida file path when export depth to png {}", output_name);
+        exit(1);
+    }
+    stb_export_buf.resize(height * width);
+    // row major
+    for (int row = 0; row < height; row++)
+        for (int col = 0; col < width; col++)
+        {
+            int raw_buf_idx = (row * width + col) * buf_channels;
+            int stb_buf_idx = ((height - 1 - row) * width + col);
+            uint32_t val = raw_buf[raw_buf_idx] * 255.99f;
+            if (val > 255)
+                val = 0;
+            stb_export_buf[stb_buf_idx] = uint8_t(val);
+        }
+
+    stbi_write_png(output_name.c_str(), width, height, 1, stb_export_buf.data(), width * sizeof(uint8_t));
+}
+
+/**
+ * \brief   
+ *      Output depth value as txt, unit is [m]
+*/
+#include <iomanip>
+void ExportDepthToTxt(float *raw_buf, int height, int width, int buf_channels, std::string output_name)
+{
+    if (cFileUtil::ValidateFilePath(output_name) == false)
+    {
+        SIM_ERROR("invalida file path when export depth to png {}", output_name);
+        exit(1);
+    }
+    std::ofstream fout(output_name, 'w');
+    fout << "width " << width << " height " << height << " unit "
+         << "meter\n";
+    // row major
+    fout << std::setprecision(6);
+    for (int row = 0; row < height; row++)
+    {
+        for (int col = 0; col < width; col++)
+        {
+            int raw_buf_idx = ((height - 1 - row) * width + col) * buf_channels;
+            fout << raw_buf[raw_buf_idx] << " ";
+            // uint32_t val = raw_buf[raw_buf_idx] * 255.99f;
+            // if (val > 255)
+            //     val = 0;
+            // stb_export_buf[stb_buf_idx] = uint8_t(val);
+        }
+        fout << std::endl;
+    }
+}
+
+void ExportRGBColorToPng(float *buf, int height, int width, int buf_channels, std::string output_name)
+{
+    if (cFileUtil::ValidateFilePath(output_name) == false)
+    {
+        SIM_ERROR("invalida file path when export depth to png {}", output_name);
+        exit(1);
+    }
+    stb_export_buf.resize(height * width * 3);
+    // row major
+    for (int row = 0; row < height; row++)
+        for (int col = 0; col < width; col++)
+        {
+            int raw_buf_idx_st = (row * width + col) * buf_channels;
+            int stb_buf_idx = ((height - 1 - row) * width + col) * 3;
+
+            for (int j = 0; j < 3; j++)
+            {
+                stb_export_buf[stb_buf_idx + j] = uint8_t(buf[raw_buf_idx_st + j] * 255.99);
+            }
+        }
+
+    stbi_write_png(output_name.c_str(), width, height, 3, stb_export_buf.data(), width * sizeof(uint8_t) * 3);
+}

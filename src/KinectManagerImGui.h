@@ -33,6 +33,8 @@ protected:
     cKinectImageResourcePtr GetDepthImageNew();
     cKinectImageResourcePtr GetColorImageNew();
     std::vector<cKinectImageResourcePtr> GetDepthToColorImageNew();
+    void ExportCapture();
+    void ExportKinectConfiguration(std::string outputname);
 };
 
 SIM_DECLARE_PTR(cKinectManagerImGui);

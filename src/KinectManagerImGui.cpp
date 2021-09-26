@@ -1,8 +1,9 @@
 #include "KinectManagerImGui.h"
+#include "utils/FileUtil.h"
 #include "utils/LogUtil.h"
 #include "utils/TimeUtil.hpp"
 #include "KinectResource.h"
-
+#include <iostream>
 const std::vector<const char *> gDisplayModeStr =
     {"only_color",
      "only_depth",
@@ -60,6 +61,10 @@ void cKinectManagerImGui::Init()
 }
 
 #include "imgui.h"
+extern bool SavePNGSingleChannel(const float *depth_pixels, int width, int height,
+                                 const char *outfile_name);
+int gOutputImageIdx = 0;
+const std::string gOutputImagedir = "output";
 void cKinectManagerImGui::UpdateGui()
 {
     static int color_mode = mColorMode;
@@ -73,6 +78,27 @@ void cKinectManagerImGui::UpdateGui()
                  gColorModeStr.size());
 
     ImGui::Checkbox("downsample", &mEnableDownsample);
+    bool capture = ImGui::Button("capture!");
+    if (capture)
+    {
+        bool confirm_output = true;
+        if (mEnableDownsample == true)
+        {
+            SIM_INFO("Downsample is enabled at this moment, and the output image will be effected. please push button again");
+            mEnableDownsample = false;
+            confirm_output = false;
+        }
+        if (
+            mDisplayMode == eDisplayMode::ONLY_COLOR ||
+            mDisplayMode == eDisplayMode::ONLY_DEPTH)
+        {
+            SIM_INFO("only_color/only_depth is enabled at this moment, please adjust");
+            confirm_output = false;
+        }
+        if (confirm_output)
+            ExportCapture();
+    }
+
     mDisplayMode = static_cast<eDisplayMode>(display_mode);
     // SetDepthMode(static_cast<k4a_depth_mode_t>(depth_mode));
     SetColorAndDepthMode(
@@ -80,6 +106,37 @@ void cKinectManagerImGui::UpdateGui()
         static_cast<k4a_color_resolution_t>(color_mode));
 
     ImGui::SameLine();
+}
+void cKinectManagerImGui::ExportCapture()
+{
+    if (cFileUtil::ExistsDir(gOutputImagedir) == false)
+        cFileUtil::CreateDir(gOutputImagedir.c_str());
+
+    std::string depth_png_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".png";
+    std::string depth_txt_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".txt";
+    std::string color_png_name = gOutputImagedir + "/color" + std::to_string(gOutputImageIdx) + ".png";
+    std::string conf_name = gOutputImagedir + "/conf" + std::to_string(gOutputImageIdx) + ".txt";
+    ExportDepthToPng(mCurDepthImage->mData.data(), mCurDepthImage->mHeight, mCurDepthImage->mWidth, mCurDepthImage->mChannels, depth_png_name);
+    ExportDepthToTxt(mCurDepthImage->mData.data(),
+                     mCurDepthImage->mHeight, mCurDepthImage->mWidth, mCurDepthImage->mChannels, depth_txt_name);
+    ExportRGBColorToPng(mCurColorImage->mData.data(),
+                        mCurColorImage->mHeight, mCurColorImage->mWidth, mCurColorImage->mChannels, color_png_name);
+    ExportKinectConfiguration(conf_name);
+    SIM_INFO("depth png {}, depth txt {}, color png {}, kinect conf {}",
+             depth_png_name,
+             depth_txt_name,
+             color_png_name,
+             conf_name);
+    gOutputImageIdx += 1;
+}
+void cKinectManagerImGui::ExportKinectConfiguration(std::string output_name)
+{
+    std::ofstream fout(output_name, 'w');
+    fout << "display mode = " << gDisplayModeStr[mDisplayMode] << std::endl;
+    fout << "color mode = " << gColorModeStr[mColorMode] << std::endl;
+    fout << "depth mode = " << gDepthModeStr[mDepthMode] << std::endl;
+    fout << "captured at " << cTimeUtil::GetSystemTime() << std::endl;
+    fout.close();
 }
 
 cKinectImageResourcePtr cKinectManagerImGui::GetDepthImageNew()
@@ -138,6 +195,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
         exit(1);
         break;
     }
+
     // cTimeUtil::End("get_rendering_resource");
     return res;
 }

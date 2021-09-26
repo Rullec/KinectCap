@@ -258,9 +258,9 @@ void cRender::UpdateTextureData(GLuint texture, std::vector<float *> data_array,
         int st_height = st_array[i][0];
         int st_width = st_array[i][1];
         float *data = data_array[i];
-        printf("[debug] update texutre data at %d %d for shape %d %d\n",
-               st_height, st_width,
-               height, width);
+        // printf("[debug] update texutre data at %d %d for shape %d %d\n",
+        //        st_height, st_width,
+        //        height, width);
         glTexSubImage2D(GL_TEXTURE_2D, 0, st_width, st_height, width, height, GL_RGB, GL_FLOAT, data);
         // glTexSubImage2D(
         //     GL_TEXTURE_2D, 0, 0, 0, mWidth, mHeight, GL_RGB, GL_FLOAT, data);

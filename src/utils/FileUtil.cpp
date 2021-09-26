@@ -285,8 +285,10 @@ bool cFileUtil::ValidateFilePath(const std::string &file_name)
         return true;
     else
     {
-        if (nullptr != cFileUtil::OpenFile(file_name, "w"))
+        auto f = cFileUtil::OpenFile(file_name, "w");
+        if (nullptr != f)
         {
+            cFileUtil::CloseFile(f);
             cFileUtil::DeleteFile(file_name);
             return true;
         }

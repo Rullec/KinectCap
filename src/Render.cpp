@@ -1,9 +1,16 @@
 #include "Render.h"
 #include "RenderCallback.h"
 #include <iostream>
-
+#include "utils/DefUtil.h"
+#include "imgui.h"
+#include "backends\imgui_impl_glfw.h"
+#include "backends\imgui_impl_opengl3.h"
+#include "KinectManagerImGui.h"
+#include "GLFW/glfw3.h"
+#include "GLFW/glfw3native.h"
 cRender::cRender(int height, int width) : mHeight(height), mWidth(width)
 {
+    mNeedToUpdateImGuiWindowPos = true;
 }
 
 void cRender::InitGL()
@@ -31,6 +38,8 @@ void cRender::InitGL()
     glfwSetWindowPos(mWindow, mStartX, mStartY);
     glfwMakeContextCurrent(mWindow);
 
+    glfwSwapInterval(1); // enable vsync from ImGUI
+
     glfwSetKeyCallback(mWindow, KeyEventCallback);
     glfwSetCursorPosCallback(mWindow, MouseMoveEventCallback);
     glfwSetMouseButtonCallback(mWindow, MouseButtonEventCallback);
@@ -48,6 +57,23 @@ void cRender::InitGL()
     // glClearColor(0.2, 0.3, 0.4, 1);
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // ------------------ add imgui code -------------------
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO &io = ImGui::GetIO();
+    (void)io;
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+    // Setup Dear ImGui style
+    ImGui::StyleColorsDark();
+    //ImGui::StyleColorsClassic();
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(mWindow, true);
+    const char *glsl_version = "#version 130";
+    ImGui_ImplOpenGL3_Init(glsl_version);
 }
 
 void cRender::Init()
@@ -206,12 +232,30 @@ void cRender::CreateFBOFromTexture(GLuint &fbo, GLuint texture)
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 }
 
-void cRender::UpdateTextureData(GLuint texture, float *data)
+// void cRender::UpdateTextureData(GLuint texture, float *data)
+#include "utils/LogUtil.h"
+void cRender::UpdateTextureData(GLuint texture, std::vector<float *> data_array, const tEigenArr<tVector2i> &shape_array, const tEigenArr<tVector2i> &st_array)
 {
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    glTexSubImage2D(
-        GL_TEXTURE_2D, 0, 0, 0, mWidth, mHeight, GL_RGB, GL_FLOAT, data);
+    SIM_ASSERT(shape_array.size() == 2);
+    SIM_ASSERT(data_array.size() == 2);
+    SIM_ASSERT(st_array.size() == 2);
+
+    for (int i = 0; i < 2; i++)
+    {
+        int height = shape_array[i][0];
+        int width = shape_array[i][1];
+        int st_height = st_array[i][0];
+        int st_width = st_array[i][1];
+        float *data = data_array[i];
+        printf("[debug] update texutre data at %d %d for shape %d %d\n",
+               st_height, st_width,
+               height, width);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, st_width, st_height, width, height, GL_RGB, GL_FLOAT, data);
+        // glTexSubImage2D(
+        //     GL_TEXTURE_2D, 0, 0, 0, mWidth, mHeight, GL_RGB, GL_FLOAT, data);
+    }
 }
 
 void cRender::UpdateFBO(GLuint fbo)
@@ -235,35 +279,168 @@ void cRender::InitTextureAndFBO()
 //     return mTextureData.data();
 // }
 
+tEigenArr<tVector2i> image_st_array;
+tEigenArr<tVector2i> image_shape_array;
+std::vector<float *> rendering_resouce_array;
+#include "utils/TimeUtil.hpp"
+cTimePoint st = cTimeUtil::GetCurrentTime_chrono();
 void cRender::PostUpdate()
 {
 
     // UpdateValue(data, 3);
-    UpdateTextureData(mTextureId, mTextureData.data());
+    UpdateTextureData(mTextureId, rendering_resouce_array, image_shape_array, image_st_array);
 
     // Every time you want to copy the texture to the default framebuffer.
     UpdateFBO(mFBO);
 
+    // rendering imgui
+    {
+
+        // bool show_demo_window = true;
+        // bool show_another_window = false;
+        // ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+        // Start the Dear ImGui frame
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        ImGui::GetIO().IniFilename = NULL;
+
+        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
+        {
+
+            ImVec2 init_window_size = ImVec2(250, 180);
+            ImGui::SetNextWindowSize(init_window_size, ImGuiCond_Once);
+            if (mNeedToUpdateImGuiWindowPos == true)
+            {
+                ImGui::SetNextWindowPos(ImVec2(float(gWindowWidth) - init_window_size.x, 0),
+                                        ImGuiCond_Always);
+                mNeedToUpdateImGuiWindowPos = false;
+            }
+
+            ImGuiWindowFlags window_flags = 0;
+            // window_flags |= ImGuiWindowFlags_NoMove;
+            // window_flags |= ImGuiWindowFlags_NoResize;
+            bool open = false;
+            bool *p_open = &open;
+
+            ImGui::Begin("kinect setting", p_open, window_flags);
+            if (mKinectManager != nullptr)
+                mKinectManager->UpdateGui();
+
+            // show fps
+
+            {
+                cTimePoint cur = cTimeUtil::GetCurrentTime_chrono();
+                int fps = int(1.0 / (cTimeUtil::CalcTimeElaspedms(st, cur) * 1e-3));
+                ImGui::NewLine();
+                ImGui::Text("FPS %d", fps);
+                st = cur;
+            }
+            // ImGui::ShowDemoWindow();
+            ImGui::End();
+        }
+
+        // Rendering
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
     glfwSwapBuffers(mWindow);
-    glfwPollEvents();
 }
 
 void cRender::UpdateTextureFromDepthImage(const tMatrixXi &depth_image)
 {
     float max = 1000;
-    int height = depth_image.rows();
-    int width = depth_image.cols();
+    int input_height = depth_image.rows();
+    int input_width = depth_image.cols();
 
-    for (int row = 0; row < height; row++)
+    // check the shape
     {
-        for (int col = 0; col < width; col++)
+        if (input_height != mHeight || input_width != mWidth)
         {
-            int bias = (row * width + col) * 3;
-            float value = float(depth_image(height - 1 - row, col)) / max;
+            printf("cur window size %d %d, input depth size %d %d, need to resize\n", input_height, input_width, mHeight, mWidth);
+            Resize(input_height, input_width);
+        }
+    }
+    for (int row = 0; row < input_height; row++)
+    {
+        for (int col = 0; col < input_width; col++)
+        {
+            int bias = (row * input_width + col) * 3;
+            float value = float(depth_image(input_height - 1 - row, col)) / max;
             mTextureData[bias + 0] = value;
             mTextureData[bias + 1] = value;
             mTextureData[bias + 2] = value;
         }
     }
+}
 
+void cRender::SetKinectManager(cKinectManagerImGuiPtr mana)
+{
+    mKinectManager = mana;
+}
+
+void cRender::Resize(int height, int width)
+{
+    glfwSetWindowSize(mWindow, width, height);
+    glDeleteTextures(1, &mTextureId);
+    glDeleteFramebuffers(1, &mFBO);
+    mHeight = height;
+    mWidth = width;
+    gWindowHeight = mHeight;
+    gWindowWidth = mWidth;
+    mNeedToUpdateImGuiWindowPos = true;
+    InitTextureAndFBO();
+    // CreateTexture(mTextureId, mTextureData, mWidth, mHeight);
+    printf("resize to %d %d\n", height, width);
+}
+
+void cRender::UpdateTextureFromRenderResource(cKinectImageResourcePtr resource)
+{
+    int new_height = resource->mHeight,
+        new_width = resource->mWidth;
+    if (new_height != mHeight || new_width != mWidth)
+    {
+        std::cout << "resize before update tex\n";
+        Resize(new_height, new_width);
+    }
+    memcpy(mTextureData.data(), resource->mData.data(), sizeof(float) * (new_height * new_width * resource->mChannels));
+    std::cout << "update texture from rendering resource!\n";
+}
+
+void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource)
+{
+    SIM_ASSERT(resource.size() == 2);
+    // 1. calculate the final size
+    int tex_height = 0, tex_width = 0;
+    {
+        auto res0 = resource[0];
+        auto res1 = resource[1];
+        tex_height = std::max(res0->mHeight, res0->mHeight);
+        tex_width = res0->mWidth + res1->mWidth;
+    }
+    if (tex_height != mHeight || tex_width != mWidth)
+    {
+        printf("[debug] combined height %d width %d, resize\n");
+        Resize(tex_height, tex_width);
+    }
+
+    {
+        image_st_array.clear();
+        image_shape_array.clear();
+        rendering_resouce_array.clear();
+
+        int cur_width_st = 0;
+        for (int i = 0; i < resource.size(); i++)
+        {
+            auto cur = resource[i];
+
+            image_st_array.push_back(
+                tVector2i(0, cur_width_st));
+            std::cout << "resouce " << i << " st = " << cur_width_st << std::endl;
+            cur_width_st += cur->mWidth;
+            image_shape_array.push_back(
+                tVector2i(cur->mHeight, cur->mWidth));
+            rendering_resouce_array.push_back(cur->mData.data());
+        }
+    }
 }

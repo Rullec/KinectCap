@@ -4,8 +4,10 @@ project(KinectCap VERSION 0.1.0)
 set(
     SRC
     ./src/KinectManager.cpp
+    ./src/KinectManagerImGui.cpp
     ./src/Render.cpp
     ./src/RenderCallback.cpp
+    ./src/KinectMode.cpp
 )
 
 # custom cmake scripts

@@ -7,13 +7,12 @@
 class cKinectManager
 {
 public:
-    cKinectManager(std::string mode);
+    cKinectManager(std::string color_mode_str, std::string depth_mode_str);
     virtual ~cKinectManager();
     virtual tMatrixXi GetDepthImage();
     virtual double GetDepthUnit_mm();
     virtual tMatrixXi GetIrImage();
-    virtual std::string GetDepthMode() const;
-    virtual void SetDepthMode(std::string mode);
+
     virtual tMatrix3d GetDepthIntrinsicMtx() const;
     virtual tVectorXd GetDepthIntrinsicDistCoef() const;
     virtual tMatrix3d GetColorIntrinsicMtx() const;
@@ -22,17 +21,21 @@ public:
     virtual std::vector<tMatrixXi> GetColorImage() const;
     virtual tMatrixXi GetDepthToColorImage() const;
 
+    // mode configuration
+    virtual std::string GetDepthModeStr() const;
+    virtual void SetDepthModeFromStr(std::string mode);
+    virtual void SetDepthMode(k4a_depth_mode_t mode);
+
 protected:
     virtual void Init();
     virtual void CloseDevice();
     k4a_device_t mDevice;
     k4a_device_configuration_t mConfig;
     k4a_depth_mode_t mDepthMode;
+    k4a_color_resolution_t mColorMode;
     virtual k4a_capture_t GetCapture() const;
     virtual k4a_calibration_camera_t GetDepthCalibration() const;
     virtual k4a_calibration_camera_t GetColorCalibration() const;
-    static std::string BuildStringFromDepthMode(k4a_depth_mode_t mode);
-    static k4a_depth_mode_t BuildModeFromString(std::string);
 
     // openni::VideoFrameRef m_depthFrame;
     // openni::Device m_device;

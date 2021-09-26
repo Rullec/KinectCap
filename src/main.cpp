@@ -15,7 +15,8 @@ SIM_DECLARE_PTR(cRender);
 
 int main()
 {
-    cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("only_depth");
+    cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("depth_to_color");
+    manager->Init();
     tMatrixXi depth_image = manager->GetDepthImage();
     printf("get depth image size %d %d\n", depth_image.rows(), depth_image.cols());
     gWindowHeight = depth_image.rows();

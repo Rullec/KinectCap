@@ -8,6 +8,7 @@ class cKinectManager
 {
 public:
     cKinectManager(std::string color_mode_str, std::string depth_mode_str);
+    virtual void Init();
     virtual ~cKinectManager();
     virtual tMatrixXi GetDepthImage();
     virtual double GetDepthUnit_mm();
@@ -25,14 +26,16 @@ public:
     virtual std::string GetDepthModeStr() const;
     virtual void SetDepthModeFromStr(std::string mode);
     virtual void SetDepthMode(k4a_depth_mode_t mode);
+    virtual void SetColorMode(k4a_color_resolution_t mode);
+    virtual void SetColorAndDepthMode(k4a_depth_mode_t new_depth_mode, k4a_color_resolution_t new_color_mode);
 
 protected:
-    virtual void Init();
     virtual void CloseDevice();
     k4a_device_t mDevice;
     k4a_device_configuration_t mConfig;
     k4a_depth_mode_t mDepthMode;
     k4a_color_resolution_t mColorMode;
+    k4a_fps_t mFPS;
     virtual k4a_capture_t GetCapture() const;
     virtual k4a_calibration_camera_t GetDepthCalibration() const;
     virtual k4a_calibration_camera_t GetColorCalibration() const;
@@ -44,5 +47,6 @@ protected:
     // tMatrixXi depth_mat, ir_mat;
     // openni::VideoFrameRef m_irFrame;
     // openni::VideoStream m_irStream;
+    virtual k4a_fps_t GetFPS(k4a_depth_mode_t depth ,k4a_color_resolution_t color);
 };
 SIM_DECLARE_PTR(cKinectManager);

@@ -1,18 +1,13 @@
 #include "KinectManagerImGui.h"
 #include "utils/LogUtil.h"
-
-cKinectImageResource::cKinectImageResource()
-{
-    mHeight = 0;
-    mWidth = 0;
-    mChannels = -1;
-    mData.resize(0);
-}
+#include "utils/TimeUtil.hpp"
+#include "KinectResource.h"
 
 const std::vector<const char *> gDisplayModeStr =
     {"only_color",
      "only_depth",
-     "color_and_depth"};
+     "color_and_depth",
+     "depth_to_color"};
 cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
     : cKinectManager("720p_16_9", "nfov_unbinned")
 {
@@ -20,6 +15,7 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
         display_mode);
     mCurDepthImage = std::make_shared<cKinectImageResource>();
     mCurColorImage = std::make_shared<cKinectImageResource>();
+    mEnableDownsample = true;
 }
 std::string cKinectManagerImGui::BuildStrFromDisplayMode(eDisplayMode mode)
 {
@@ -50,13 +46,22 @@ void cKinectManagerImGui::Init()
     mDisplayModeStr = cKinectManagerImGui ::BuildStrFromDisplayMode(mDisplayMode);
     mDepthModeStr = cKinectMode::BuildStringFromDepthMode(mDepthMode);
     mColorModeStr = cKinectMode::BuildStringFromColorMode(mColorMode);
+    printf("begin to init calibration and transformation\n");
+    if (K4A_RESULT_SUCCEEDED !=
+        k4a_device_get_calibration(mDevice, mConfig.depth_mode,
+                                   mConfig.color_resolution, &mCalibration))
+    {
+        printf("Failed to get calibration\n");
+        exit(1);
+    }
+
+    mCalibratinTrans =
+        k4a_transformation_create(&mCalibration);
 }
 
 #include "imgui.h"
 void cKinectManagerImGui::UpdateGui()
 {
-    // const char *items[] = {"0", "45", "90"};
-    // ;
     static int color_mode = mColorMode;
     static int depth_mode = mDepthMode;
     static int display_mode = mDisplayMode;
@@ -67,7 +72,13 @@ void cKinectManagerImGui::UpdateGui()
     ImGui::Combo("color mode", &color_mode, gColorModeStr.data(),
                  gColorModeStr.size());
 
-    SetDepthMode(static_cast<k4a_depth_mode_t>(depth_mode));
+    ImGui::Checkbox("downsample", &mEnableDownsample);
+    mDisplayMode = static_cast<eDisplayMode>(display_mode);
+    // SetDepthMode(static_cast<k4a_depth_mode_t>(depth_mode));
+    SetColorAndDepthMode(
+        static_cast<k4a_depth_mode_t>(depth_mode),
+        static_cast<k4a_color_resolution_t>(color_mode));
+
     ImGui::SameLine();
 }
 
@@ -80,106 +91,16 @@ cKinectImageResourcePtr cKinectManagerImGui::GetDepthImageNew()
 
     auto capture = GetCapture();
     k4a_image_t image = k4a_capture_get_depth_image(capture);
-    mCurDepthImage->ConvertFromKinect(image);
+    mCurDepthImage->ConvertFromKinect(image, mEnableDownsample);
     k4a_image_release(image);
     k4a_capture_release(capture);
     return mCurDepthImage;
 }
 
-void cKinectImageResource::ConvertFromKinect(k4a_image_t image)
-{
-    if (image == NULL)
-    {
-        mHeight = 0;
-        mWidth = 0;
-        mChannels = 0;
-        mData.clear();
-    }
-
-    mHeight = k4a_image_get_height_pixels(image);
-    mWidth = k4a_image_get_width_pixels(image);
-    int stride_bytes = k4a_image_get_stride_bytes(image);
-    k4a_image_format_t cur_format = k4a_image_get_format(image);
-    switch (cur_format)
-    {
-    case K4A_IMAGE_FORMAT_DEPTH16:
-        ConvertFromDepthImage(image);
-        break;
-    case K4A_IMAGE_FORMAT_COLOR_BGRA32:
-        ConvertFromColorImage(image);
-        break;
-    default:
-        SIM_ERROR("unsupported format {}", cur_format);
-        break;
-    }
-}
-
-void cKinectImageResource::ConvertFromDepthImage(k4a_image_t image)
-{
-    auto image_format = k4a_image_get_format(image);
-    SIM_ASSERT(image_format == K4A_IMAGE_FORMAT_DEPTH16);
-    uint16_t *buffer_raw = (uint16_t *)(k4a_image_get_buffer(image));
-    mChannels = 3; // RGB format
-    int total_size = mHeight * mWidth * mChannels;
-    if (mData.size() != total_size)
-        mData.resize(total_size, 1);
-    for (int row_id = 0; row_id < mHeight; row_id++)
-    {
-        for (int col_id = 0; col_id < mWidth; col_id++)
-        {
-            // (row, col) pixel value
-            int kinect_idx = row_id * mWidth + col_id;
-            int output_idx = (mHeight - row_id - 1) * mWidth + col_id;
-            float pixel_value = float(buffer_raw[kinect_idx]) / 1e3;
-            mData[3 * output_idx + 0] = pixel_value;
-            mData[3 * output_idx + 1] = pixel_value;
-            mData[3 * output_idx + 2] = pixel_value;
-        }
-    }
-}
-void cKinectImageResource::ConvertFromColorImage(k4a_image_t image)
-{
-    int height = k4a_image_get_height_pixels(image);
-    int width = k4a_image_get_width_pixels(image);
-    uint8_t *image_data = (uint8_t *)(void *)k4a_image_get_buffer(image);
-    auto image_format = k4a_image_get_format(image);
-    SIM_ASSERT(image_format == K4A_IMAGE_FORMAT_COLOR_BGRA32);
-
-    mChannels = 3;
-    mData.resize(3 * height * width);
-    for (int row = 0; row < height; row++)
-        for (int col = 0; col < width; col++)
-        {
-            int offset_buffer = (row * width + col) * 4;
-            int offset_output_data = ((mHeight - 1 - row) * width + col) * 3;
-            // R
-            mData[offset_output_data + 0] = float(image_data[offset_buffer + 2]) / 255;
-            // G
-            mData[offset_output_data + 1] = float(image_data[offset_buffer + 1]) / 255;
-            // B
-            mData[offset_output_data + 2] = float(image_data[offset_buffer + 0]) / 255;
-        }
-}
-
-cKinectImageResourcePtr cKinectManagerImGui::GetColorImageNew()
-{
-    if (mColorMode == K4A_COLOR_RESOLUTION_OFF)
-    {
-        return nullptr;
-    }
-
-    auto capture = GetCapture();
-    k4a_image_t image = k4a_capture_get_color_image(capture);
-    mCurColorImage->ConvertFromKinect(image);
-    k4a_image_release(image);
-    k4a_capture_release(capture);
-    return mCurColorImage;
-}
-
 std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
 {
+    // cTimeUtil::Begin("get_rendering_resource");
     std::vector<cKinectImageResourcePtr> res = {};
-    mDisplayMode = COLOR_AND_DEPTH;
     switch (mDisplayMode)
     {
     case eDisplayMode::COLOR_AND_DEPTH:
@@ -205,11 +126,116 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
         auto depth = GetDepthImageNew();
         if (depth != nullptr)
             res.push_back(depth);
-    }
-    break;
-
-    default:
         break;
     }
+    case eDisplayMode::DEPTH_TO_COLOR:
+    {
+        res = GetDepthToColorImageNew();
+        break;
+    }
+    default:
+        SIM_ERROR("unsupport display mode {}", mDisplayMode);
+        exit(1);
+        break;
+    }
+    // cTimeUtil::End("get_rendering_resource");
     return res;
+}
+#include "utils/TimeUtil.hpp"
+std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNew()
+{
+    // cTimeUtil::Begin("pre_depth_alignment");
+    // cTimeUtil::Begin("pre_depth_alignment1");
+
+    // cTimeUtil::End("pre_depth_alignment1");
+    // cTimeUtil::Begin("pre_depth_alignment2");
+    // Get a capture
+    k4a_capture_t capture = GetCapture();
+
+    // Get a depth image
+    auto depth_image = k4a_capture_get_depth_image(capture);
+    if (depth_image == 0)
+    {
+        printf("Failed to get depth image from capture\n");
+        exit(1);
+    }
+
+    // Get a color image
+    auto color_image = k4a_capture_get_color_image(capture);
+    if (color_image == 0)
+    {
+        printf("Failed to get color image from capture\n");
+        exit(1);
+    }
+    // cTimeUtil::End("pre_depth_alignment2");
+    // Compute color point cloud by warping depth image into color camera
+    // geometry
+    // transform color image into depth camera geometry
+    int color_image_width_pixels = k4a_image_get_width_pixels(color_image);
+    int color_image_height_pixels = k4a_image_get_height_pixels(color_image);
+    // cTimeUtil::End("pre_depth_alignment");
+    // cTimeUtil::Begin("create_trans_resource");
+    k4a_image_t transformed_depth_image = NULL;
+    if (K4A_RESULT_SUCCEEDED !=
+        k4a_image_create(K4A_IMAGE_FORMAT_DEPTH16, color_image_width_pixels,
+                         color_image_height_pixels,
+                         color_image_width_pixels * (int)sizeof(uint16_t),
+                         &transformed_depth_image))
+    {
+        printf("Failed to create transformed depth image\n");
+        exit(1);
+    }
+
+    k4a_image_t point_cloud_image = NULL;
+    if (K4A_RESULT_SUCCEEDED !=
+        k4a_image_create(K4A_IMAGE_FORMAT_CUSTOM, color_image_width_pixels,
+                         color_image_height_pixels,
+                         color_image_width_pixels * 3 * (int)sizeof(int16_t),
+                         &point_cloud_image))
+    {
+        printf("Failed to create point cloud image\n");
+        exit(1);
+    }
+
+    // cTimeUtil::End("create_trans_resource");
+    // cTimeUtil::Begin("do_trans");
+    if (K4A_RESULT_SUCCEEDED !=
+        k4a_transformation_depth_image_to_color_camera(
+            mCalibratinTrans, depth_image, transformed_depth_image))
+    {
+        printf("Failed to compute transformed depth image\n");
+        exit(1);
+    }
+
+    if (K4A_RESULT_SUCCEEDED !=
+        k4a_transformation_depth_image_to_point_cloud(
+            mCalibratinTrans, transformed_depth_image,
+            K4A_CALIBRATION_TYPE_COLOR, point_cloud_image))
+    {
+        printf("Failed to compute point cloud\n");
+        exit(1);
+    }
+    // cTimeUtil::End("do_trans");
+    // cTimeUtil::Begin("post_depth_alignment");
+    mCurDepthImage->ConvertFromKinect(transformed_depth_image, mEnableDownsample);
+    mCurColorImage->ConvertFromKinect(color_image, mEnableDownsample);
+    k4a_image_release(transformed_depth_image);
+    k4a_image_release(point_cloud_image);
+    // cTimeUtil::End("post_depth_alignment");
+    return {mCurColorImage, mCurDepthImage};
+}
+
+cKinectImageResourcePtr cKinectManagerImGui::GetColorImageNew()
+{
+    if (mColorMode == K4A_COLOR_RESOLUTION_OFF)
+    {
+        return nullptr;
+    }
+
+    auto capture = GetCapture();
+    k4a_image_t image = k4a_capture_get_color_image(capture);
+    mCurColorImage->ConvertFromKinect(image, mEnableDownsample);
+    k4a_image_release(image);
+    k4a_capture_release(capture);
+    return mCurColorImage;
 }

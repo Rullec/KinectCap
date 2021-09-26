@@ -6,13 +6,21 @@
 #include "backends\imgui_impl_glfw.h"
 #include "backends\imgui_impl_opengl3.h"
 #include "KinectManagerImGui.h"
+#include "KinectResource.h"
 #include "GLFW/glfw3.h"
 #include "GLFW/glfw3native.h"
+
+const int gui_height = 200;
 cRender::cRender(int height, int width) : mHeight(height), mWidth(width)
 {
     mNeedToUpdateImGuiWindowPos = true;
 }
-
+cRender::~cRender()
+{
+    // ImGui_ImplOpenGL3_Shutdown();
+    // ImGui_ImplGlfw_Shutdokwn();
+    // ImGui::DestroyContext();
+}
 void cRender::InitGL()
 {
     // init glfw
@@ -62,7 +70,9 @@ void cRender::InitGL()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
-    (void)io;
+    io.IniFilename = "imgui.ini";
+    io.IniSavingRate = 1.0f;
+    // (void)io;
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
     //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
@@ -198,9 +208,12 @@ void cRender::CreateTexture(GLuint &texture, std::vector<float> &texture_data, i
         for (int col = 0; col < width; col++)
         {
             int bias = (row * width + col) * 3;
-            data[bias + 0] = float(row) / float(height);
-            data[bias + 1] = 0;
-            data[bias + 2] = 0;
+            // data[bias + 0] = float(row) / float(height);
+            // data[bias + 1] = 0;
+            // data[bias + 2] = 0;
+            data[bias + 0] = 0.2;
+            data[bias + 1] = 0.3;
+            data[bias + 2] = 0.4;
         }
     }
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -238,11 +251,7 @@ void cRender::UpdateTextureData(GLuint texture, std::vector<float *> data_array,
 {
     glBindTexture(GL_TEXTURE_2D, texture);
 
-    SIM_ASSERT(shape_array.size() == 2);
-    SIM_ASSERT(data_array.size() == 2);
-    SIM_ASSERT(st_array.size() == 2);
-
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < shape_array.size(); i++)
     {
         int height = shape_array[i][0];
         int width = shape_array[i][1];
@@ -303,13 +312,12 @@ void cRender::PostUpdate()
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
-        ImGui::GetIO().IniFilename = NULL;
 
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         {
 
             ImVec2 init_window_size = ImVec2(250, 180);
-            ImGui::SetNextWindowSize(init_window_size, ImGuiCond_Once);
+            ImGui::SetNextWindowSize(init_window_size, ImGuiCond_FirstUseEver);
             if (mNeedToUpdateImGuiWindowPos == true)
             {
                 ImGui::SetNextWindowPos(ImVec2(float(gWindowWidth) - init_window_size.x, 0),
@@ -409,14 +417,13 @@ void cRender::UpdateTextureFromRenderResource(cKinectImageResourcePtr resource)
 
 void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource)
 {
-    SIM_ASSERT(resource.size() == 2);
     // 1. calculate the final size
     int tex_height = 0, tex_width = 0;
+    for (int i = 0; i < resource.size(); i++)
     {
-        auto res0 = resource[0];
-        auto res1 = resource[1];
-        tex_height = std::max(res0->mHeight, res0->mHeight);
-        tex_width = res0->mWidth + res1->mWidth;
+        auto res = resource[i];
+        tex_height = std::max(res->mHeight + gui_height, tex_height);
+        tex_width += res->mWidth;
     }
     if (tex_height != mHeight || tex_width != mWidth)
     {
@@ -436,7 +443,7 @@ void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourc
 
             image_st_array.push_back(
                 tVector2i(0, cur_width_st));
-            std::cout << "resouce " << i << " st = " << cur_width_st << std::endl;
+            // std::cout << "resouce " << i << " st = " << cur_width_st << std::endl;
             cur_width_st += cur->mWidth;
             image_shape_array.push_back(
                 tVector2i(cur->mHeight, cur->mWidth));

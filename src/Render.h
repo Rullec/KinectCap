@@ -11,12 +11,11 @@ class cRender
 {
 public:
     cRender(int window_height, int window_width);
+    virtual ~cRender();
     void Init();
     unsigned int BindVAO();
     GLFWwindow *GetWindow();
     void UseProgram();
-    void UpdateTextureFromDepthImage(const tMatrixXi &depth_image);
-    void UpdateTextureFromRenderResource(cKinectImageResourcePtr resource);
     void UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource);
     void PostUpdate();
     void SetKinectManager(cKinectManagerImGuiPtr mana);
@@ -38,6 +37,8 @@ protected:
     void CreateTexture(GLuint &texture, std::vector<float> &texture_data, int width, int height) const;
     void CreateFBOFromTexture(GLuint &fbo, GLuint texture);
 
+    void UpdateTextureFromDepthImage(const tMatrixXi &depth_image);
+    void UpdateTextureFromRenderResource(cKinectImageResourcePtr resource);
     void UpdateTextureData(GLuint texture, std::vector<float *> data_array, const tEigenArr<tVector2i> &shape_array, const tEigenArr<tVector2i> &st_array);
     void UpdateFBO(GLuint fbo);
 

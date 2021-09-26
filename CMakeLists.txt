@@ -4,6 +4,7 @@ project(KinectCap VERSION 0.1.0)
 set(
     SRC
     ./src/KinectManager.cpp
+    ./src/KinectResource.cpp
     ./src/KinectManagerImGui.cpp
     ./src/Render.cpp
     ./src/RenderCallback.cpp

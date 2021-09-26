@@ -8,8 +8,7 @@ cKinectManager::cKinectManager(std::string color_mode_str, std::string depth_mod
 {
     mColorMode = cKinectMode::BuildColorModeFromString(color_mode_str);
     mDepthMode = cKinectMode::BuildDepthModeFromString(depth_mode_str);
-
-    Init();
+    mFPS = K4A_FRAMES_PER_SECOND_30;
 }
 
 #include <windows.h>
@@ -237,7 +236,7 @@ void cKinectManager::Init()
     // mConfig.color_resolution = K4A_COLOR_RESOLUTION_1080P;
     mConfig.depth_mode = mDepthMode;
     // mConfig.depth_mode = K4A_DEPTH_MODE_WFOV_UNBINNED;
-    mConfig.camera_fps = K4A_FRAMES_PER_SECOND_30;
+    mConfig.camera_fps = mFPS;
     mConfig.synchronized_images_only = true;
     // mConfig.camera_fps = K4A_FRAMES_PER_SECOND_15;
 
@@ -476,4 +475,40 @@ tVectorXd cKinectManager::GetColorIntrinsicDistCoef() const
     res[6] = color_calib.intrinsics.parameters.param.k5;
     res[7] = color_calib.intrinsics.parameters.param.k6;
     return res;
+}
+
+void cKinectManager::SetColorMode(k4a_color_resolution_t new_mode)
+{
+    if (new_mode != this->mColorMode)
+    {
+        std::cout << "set now color mode to " << cKinectMode::BuildStringFromColorMode(new_mode);
+        CloseDevice();
+        mColorMode = new_mode;
+        Init();
+    }
+}
+
+void cKinectManager::SetColorAndDepthMode(k4a_depth_mode_t new_depth_mode, k4a_color_resolution_t new_color_mode)
+{
+    if (new_depth_mode != mDepthMode || new_color_mode != mColorMode)
+    {
+        mFPS = GetFPS(new_depth_mode, new_color_mode);
+        printf("set color mode to %s, depth mode to %s\n", cKinectMode::BuildStringFromColorMode(new_color_mode).c_str(), cKinectMode::BuildStringFromDepthMode(new_depth_mode).c_str());
+        CloseDevice();
+        mColorMode = new_color_mode;
+        mDepthMode = new_depth_mode;
+        Init();
+    }
+}
+
+k4a_fps_t cKinectManager::GetFPS(k4a_depth_mode_t depth, k4a_color_resolution_t color)
+{
+    if (depth == K4A_DEPTH_MODE_WFOV_UNBINNED)
+    {
+        return K4A_FRAMES_PER_SECOND_15;
+    }
+    else
+    {
+        return K4A_FRAMES_PER_SECOND_30;
+    }
 }

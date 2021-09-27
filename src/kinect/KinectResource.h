@@ -7,12 +7,13 @@ class cKinectImageResource
 {
 public:
     cKinectImageResource();
-    void ConvertFromKinect(k4a_image_t image, bool enable_downsampling = true);
+    void ConvertFromKinect(k4a_image_t image, bool enable_downsampling = true, float value_adjust = 0);
     void Reset();
     int mPresentHeight, mPresentWidth;
     int mRawHeight, mRawWidth;
     int mChannels;
     bool mEnableDownsampling;
+    float mValueAdjust;
     std::vector<float> mPresentData;
     std::vector<float> mRawData;
 

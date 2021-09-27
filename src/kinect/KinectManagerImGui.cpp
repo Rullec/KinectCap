@@ -18,10 +18,16 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
         display_mode);
     mCurDepthImage = std::make_shared<cKinectImageResource>();
     mCurColorImage = std::make_shared<cKinectImageResource>();
+    mDebugChessboardResource = std::make_shared<cKinectImageResource>();
+    mDepthDiffResource = std::make_shared<cKinectImageResource>();
     mEnableDownsample = true;
     mEnablePoseEstimate = true;
     mEnableShowRaycast = true;
+    mDebugDrawChessboard = false;
+    mLockEstimation = false;
+    mEnableDepthDiff = true;
     mRaycastFov = 60;
+    mDepthAdjustBias = 0;
     InitRaycastDepthImage();
 }
 std::string cKinectManagerImGui::BuildStrFromDisplayMode(eDisplayMode mode)
@@ -88,15 +94,40 @@ void cKinectManagerImGui::UpdateGui()
     ImGui::Checkbox("pose estimation", &mEnablePoseEstimate);
     ImGui::SameLine();
     ImGui::Checkbox("show raycast", &mEnableShowRaycast);
-    ImGui::DragFloat("raycast fov", &mRaycastFov);
+    ImGui::SameLine();
+    ImGui::Checkbox("draw chessbox", &mDebugDrawChessboard);
+    ImGui::NewLine();
+    ImGui::Checkbox("depth diff", &mEnableDepthDiff);
+    ImGui::SameLine();
+    if (mLockEstimation == true)
+    {
+        ImGui::Checkbox("cam pos locked", &mLockEstimation);
+    }
+    else
+    {
+        ImGui::Checkbox("cam pos unlocked", &mLockEstimation);
+    }
+    if (mEnableShowRaycast)
+    {
+        ImGui::DragFloat("raycast fov", &mRaycastFov, 1e-1, 40, 80);
+    }
+    ImGui::DragFloat("depth adjust", &mDepthAdjustBias, 1, -50, 50);
     bool capture = ImGui::Button("capture!");
+    // cTimeUtil::Begin("pose_est");
     if (mEnablePoseEstimate)
-        PoseEstimate();
+    {
+        if (mLockEstimation == false)
+        {
+            PoseEstimate();
+        }
+    }
     else
     {
         mEstimatedCamPos.setZero();
         mEstimatedCamFocus.setZero();
+        mEstimatedCamUp.setZero();
     }
+    // cTimeUtil::End("pose_est");
 
     if (capture)
         ExportCapture();
@@ -160,7 +191,7 @@ cKinectImageResourcePtr cKinectManagerImGui::GetDepthImageNew()
 
     auto capture = GetCapture();
     k4a_image_t image = k4a_capture_get_depth_image(capture);
-    mCurDepthImage->ConvertFromKinect(image, mEnableDownsample);
+    mCurDepthImage->ConvertFromKinect(image, mEnableDownsample, mDepthAdjustBias);
     k4a_image_release(image);
     k4a_capture_release(capture);
     return mCurDepthImage;
@@ -169,6 +200,7 @@ cKinectImageResourcePtr cKinectManagerImGui::GetDepthImageNew()
 std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
 {
     // cTimeUtil::Begin("get_rendering_resource");
+    // cTimeUtil::Begin("get_render_res");
     std::vector<cKinectImageResourcePtr> res = {};
     switch (mDisplayMode)
     {
@@ -208,11 +240,28 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
         exit(1);
         break;
     }
+    // cTimeUtil::End("get_render_res");
     if (mEnableShowRaycast == true)
     {
+        // cTimeUtil::Begin("update_raycast");
         UpdateRaycastResult(mCurDepthImage);
         res.push_back(mRaycastDepthResource);
+        // cTimeUtil::End("update_raycast");
+        if (mEnableDepthDiff == true)
+        {
+            if (mCurDepthImage->mRawHeight != 0)
+            {
+                UpdateDepthDiffResult(mDepthDiffResource);
+                res.push_back(mDepthDiffResource);
+            }
+        }
     }
+
+    if (mDebugDrawChessboard == true && mDebugChessboardResource->mPresentHeight != 0)
+    {
+        res.push_back(mDebugChessboardResource);
+    }
+
     return res;
 }
 #include "utils/TimeUtil.hpp"
@@ -231,7 +280,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
     if (depth_image == 0)
     {
         printf("Failed to get depth image from capture\n");
-        exit(1);
+        return {};
     }
 
     // Get a color image
@@ -239,7 +288,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
     if (color_image == 0)
     {
         printf("Failed to get color image from capture\n");
-        exit(1);
+        return {};
     }
     // cTimeUtil::End("pre_depth_alignment2");
     // Compute color point cloud by warping depth image into color camera
@@ -257,7 +306,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
                          &transformed_depth_image))
     {
         printf("Failed to create transformed depth image\n");
-        exit(1);
+        return {};
     }
 
     k4a_image_t point_cloud_image = NULL;
@@ -268,7 +317,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
                          &point_cloud_image))
     {
         printf("Failed to create point cloud image\n");
-        exit(1);
+        return {};
     }
 
     // cTimeUtil::End("create_trans_resource");
@@ -278,7 +327,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
             mCalibratinTrans, depth_image, transformed_depth_image))
     {
         printf("Failed to compute transformed depth image\n");
-        exit(1);
+        return {};
     }
 
     if (K4A_RESULT_SUCCEEDED !=
@@ -287,11 +336,11 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
             K4A_CALIBRATION_TYPE_COLOR, point_cloud_image))
     {
         printf("Failed to compute point cloud\n");
-        exit(1);
+        return {};
     }
     // cTimeUtil::End("do_trans");
     // cTimeUtil::Begin("post_depth_alignment");
-    mCurDepthImage->ConvertFromKinect(transformed_depth_image, mEnableDownsample);
+    mCurDepthImage->ConvertFromKinect(transformed_depth_image, mEnableDownsample, mDepthAdjustBias);
     mCurColorImage->ConvertFromKinect(color_image, mEnableDownsample);
     k4a_image_release(transformed_depth_image);
     k4a_image_release(point_cloud_image);
@@ -321,10 +370,10 @@ void cKinectManagerImGui::PoseEstimate()
         cv::Mat rgb_mat = cOpencvUtil::ConvertFloatArrayToRGBMat(mCurColorImage->mPresentHeight,
                                                                  mCurColorImage->mPresentWidth, mCurColorImage->mPresentData.data());
 
-        tMatrix3d mtx = GetColorIntrinsicMtx();
-        tVectorXd dist_coef = GetColorIntrinsicDistCoef();
+        tMatrix3d mtx = mColorIntri.mCamMtx;
+        tVectorXd dist_coef = mColorIntri.mDistCoef;
         cv::Mat debug_color_mat;
-        tVector cam_pos, cam_focus;
+        tVector cam_pos, cam_focus, cam_up;
         if (mCurColorImage->mEnableDownsampling)
         {
             /*
@@ -335,19 +384,32 @@ void cKinectManagerImGui::PoseEstimate()
             */
             mtx /= 2;
         }
-        // cTimeUtil::Begin("calc_cam_pos");
-        cPoseEstimator::Estimate(
-            rgb_mat, mtx, dist_coef, debug_color_mat, cam_pos, cam_focus);
 
-        ImGui::Text("cam_pos = %.1f, %.1f, %.1f", cam_pos[0], cam_pos[1], cam_pos[2]);
+        cPoseEstimator::Estimate(
+            rgb_mat, mtx, dist_coef, debug_color_mat, cam_pos, cam_focus, cam_up);
+
+        ImGui::Text("cam_pos = %.1f, %.1f, %.1f, ", cam_pos[0], cam_pos[1], cam_pos[2]);
         ImGui::Text("cam_focus = %.1f, %.1f, %.1f", cam_focus[0], cam_focus[1], cam_focus[2]);
+        ImGui::Text("cam_up = %.2f, %.2f, %.2f", cam_up[0], cam_up[1], cam_up[2]);
         mEstimatedCamPos = cam_pos.segment(0, 3).cast<float>();
         mEstimatedCamFocus = cam_focus.segment(0, 3).cast<float>();
+        mEstimatedCamUp = cam_up.segment(0, 3).cast<float>();
+
+        if (cam_pos.norm() < 1e-6)
+        {
+            mDebugChessboardResource->Reset();
+        }
+        else if (mDebugDrawChessboard)
+        {
+            // convert the debug color mat to rendering resource
+            cOpencvUtil::ConvertRGBMatToFloatArray(debug_color_mat, mDebugChessboardResource->mPresentHeight, mDebugChessboardResource->mPresentWidth, mDebugChessboardResource->mPresentData);
+        }
         // std::cout << "cam pos = " << cam_pos.transpose() << ", cam focus = " << cam_focus.transpose() << std::endl;
     }
     else
     {
         std::cout << "no color resource\n";
+        mDebugChessboardResource->Reset();
     }
 }
 #include "raycast/Raycast.h"
@@ -367,10 +429,10 @@ void cKinectManagerImGui::UpdateRaycastResult(cKinectImageResourcePtr depth_resu
 
     if (mEstimatedCamPos.norm() < 1e-5)
     {
-        std::cout << "estimated cam pos unavailable, cannot update raycast\n";
+        // std::cout << "estimated cam pos unavailable, cannot update raycast\n";
         return;
     }
-    cTimeUtil::Begin("init_raycast");
+    // cTimeUtil::Begin("init_raycast");
     int height = depth_result->mPresentHeight, width = depth_result->mPresentWidth;
 
     mRaycastDepthResource = std::make_shared<cKinectImageResource>();
@@ -378,6 +440,19 @@ void cKinectManagerImGui::UpdateRaycastResult(cKinectImageResourcePtr depth_resu
     mRaycastDepthResource->mPresentHeight = height;
     mRaycastDepthResource->mPresentWidth = width;
     mRaycastDepthResource->mChannels = 3;
-    mRaycaster->CalcResult(mEstimatedCamPos * 1e-3, mEstimatedCamFocus * 1e-3, mRaycastFov, height, width, mRaycastDepthResource->mPresentData);
-    cTimeUtil::End("init_raycast");
+    mRaycaster->CalcResult(mEstimatedCamPos * 1e-3, mEstimatedCamFocus * 1e-3, mEstimatedCamUp * 1e-3, mRaycastFov, height, width, mRaycastDepthResource->mPresentData);
+    // cTimeUtil::End("init_raycast");
+}
+
+void cKinectManagerImGui::UpdateDepthDiffResult(cKinectImageResourcePtr diff_res)
+{
+    diff_res->mPresentHeight = mRaycastDepthResource->mPresentHeight;
+    diff_res->mPresentWidth = mRaycastDepthResource->mPresentWidth;
+    diff_res->mChannels = mRaycastDepthResource->mChannels;
+    int size = diff_res->mPresentHeight * diff_res->mPresentWidth * diff_res->mChannels;
+    diff_res->mPresentData.resize(size);
+
+    for (int i = 0; i < size; i++)
+        diff_res->mPresentData[i] = std::fabs(mCurDepthImage->mPresentData[i] -
+                                              mRaycastDepthResource->mPresentData[i]);
 }

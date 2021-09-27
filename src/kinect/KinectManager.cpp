@@ -166,52 +166,52 @@ tMatrixXi cKinectManager::GetIrImage()
     return depth_mat;
 }
 
-/**
- * \brief           Get intrinsic camera matrix (for depth camera)
- *
- *      mtx =
- *              \begin{bmatrix}
- *              f_x & 0 & c_x \\
- *              0 & f_y & c_y \\
- *              0 & 0 & 1 \\
- *              \end{bmatrix}
- */
+// /**
+//  * \brief           Get intrinsic camera matrix (for depth camera)
+//  *
+//  *      mtx =
+//  *              \begin{bmatrix}
+//  *              f_x & 0 & c_x \\
+//  *              0 & f_y & c_y \\
+//  *              0 & 0 & 1 \\
+//  *              \end{bmatrix}
+//  */
 
-tMatrix3d cKinectManager::GetDepthIntrinsicMtx() const
-{
-    auto depth_calib = GetDepthCalibration();
-    tMatrix3d mat = tMatrix3d::Identity();
+// tMatrix3d cKinectManager::GetDepthIntrinsicMtx() const
+// {
+//     auto depth_calib = GetDepthCalibration();
+//     tMatrix3d mat = tMatrix3d::Identity();
 
-    mat(0, 0) = depth_calib.intrinsics.parameters.param.fx;
-    mat(1, 1) = depth_calib.intrinsics.parameters.param.fy;
-    mat(0, 2) = depth_calib.intrinsics.parameters.param.cx;
-    mat(1, 2) = depth_calib.intrinsics.parameters.param.cy;
-    return mat;
-}
+//     mat(0, 0) = depth_calib.intrinsics.parameters.param.fx;
+//     mat(1, 1) = depth_calib.intrinsics.parameters.param.fy;
+//     mat(0, 2) = depth_calib.intrinsics.parameters.param.cx;
+//     mat(1, 2) = depth_calib.intrinsics.parameters.param.cy;
+//     return mat;
+// }
 
-/**
- * \brief               Get the intrinsic distortion coeffs (depth camera)
- *
- * dist_coef = k_1, k_2, p_1, p_2, k_3, k_4, k_5, k_6
- * size = 8
- * which has the same order and meaning with opencv2,
- * please check
- * https://docs.opencv.org/2.4.13.7/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#calibratecamera
- */
-tVectorXd cKinectManager::GetDepthIntrinsicDistCoef() const
-{
-    auto depth_calib = GetDepthCalibration();
-    tVectorXd res = tVectorXd::Zero(8);
-    res[0] = depth_calib.intrinsics.parameters.param.k1;
-    res[1] = depth_calib.intrinsics.parameters.param.k2;
-    res[2] = depth_calib.intrinsics.parameters.param.p1;
-    res[3] = depth_calib.intrinsics.parameters.param.p2;
-    res[4] = depth_calib.intrinsics.parameters.param.k3;
-    res[5] = depth_calib.intrinsics.parameters.param.k4;
-    res[6] = depth_calib.intrinsics.parameters.param.k5;
-    res[7] = depth_calib.intrinsics.parameters.param.k6;
-    return res;
-}
+// /**
+//  * \brief               Get the intrinsic distortion coeffs (depth camera)
+//  *
+//  * dist_coef = k_1, k_2, p_1, p_2, k_3, k_4, k_5, k_6
+//  * size = 8
+//  * which has the same order and meaning with opencv2,
+//  * please check
+//  * https://docs.opencv.org/2.4.13.7/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html#calibratecamera
+//  */
+// tVectorXd cKinectManager::GetDepthIntrinsicDistCoef() const
+// {
+//     auto depth_calib = GetDepthCalibration();
+//     tVectorXd res = tVectorXd::Zero(8);
+//     res[0] = depth_calib.intrinsics.parameters.param.k1;
+//     res[1] = depth_calib.intrinsics.parameters.param.k2;
+//     res[2] = depth_calib.intrinsics.parameters.param.p1;
+//     res[3] = depth_calib.intrinsics.parameters.param.p2;
+//     res[4] = depth_calib.intrinsics.parameters.param.k3;
+//     res[5] = depth_calib.intrinsics.parameters.param.k4;
+//     res[6] = depth_calib.intrinsics.parameters.param.k5;
+//     res[7] = depth_calib.intrinsics.parameters.param.k6;
+//     return res;
+// }
 
 /**
  * \brief                   Init kinect device
@@ -246,6 +246,9 @@ void cKinectManager::Init()
         printf("[debug] start the camera failed, exit\n");
         exit(1);
     }
+
+    UpdateDepthIntrins();
+    UpdateColorIntrins();
 }
 
 cKinectManager::~cKinectManager() { k4a_device_close(this->mDevice); }
@@ -372,7 +375,7 @@ point_cloud_depth_to_color(k4a_transformation_t transformation_handle,
                          &point_cloud_image))
     {
         printf("Failed to create point cloud image\n");
-        exit(1);
+        return tMatrixXi::Zero(0, 0);
     }
 
     if (K4A_RESULT_SUCCEEDED !=
@@ -380,7 +383,7 @@ point_cloud_depth_to_color(k4a_transformation_t transformation_handle,
             transformation_handle, depth_image, transformed_depth_image))
     {
         printf("Failed to compute transformed depth image\n");
-        exit(1);
+        return tMatrixXi::Zero(0, 0);
     }
 
     if (K4A_RESULT_SUCCEEDED !=
@@ -389,7 +392,7 @@ point_cloud_depth_to_color(k4a_transformation_t transformation_handle,
             K4A_CALIBRATION_TYPE_COLOR, point_cloud_image))
     {
         printf("Failed to compute point cloud\n");
-        exit(1);
+        return tMatrixXi::Zero(0, 0);
     }
 
     tMatrixXi depth_image_eigen =
@@ -444,39 +447,38 @@ tMatrixXi cKinectManager::GetDepthToColorImage() const
     return depth_image_eigen;
 }
 
-/**
- * \brief           get the intrinsics for color camera
- */
-tMatrix3d cKinectManager::GetColorIntrinsicMtx() const
-{
+// /**
+//  * \brief           get the intrinsics for color camera
+//  */
+// tMatrix3d cKinectManager::GetColorIntrinsicMtx() const
+// {
+//     auto color_calib = GetColorCalibration();
+//     tMatrix3d mat = tMatrix3d::Identity();
 
-    auto color_calib = GetColorCalibration();
-    tMatrix3d mat = tMatrix3d::Identity();
+//     mat(0, 0) = color_calib.intrinsics.parameters.param.fx;
+//     mat(1, 1) = color_calib.intrinsics.parameters.param.fy;
+//     mat(0, 2) = color_calib.intrinsics.parameters.param.cx;
+//     mat(1, 2) = color_calib.intrinsics.parameters.param.cy;
+//     return mat;
+// }
 
-    mat(0, 0) = color_calib.intrinsics.parameters.param.fx;
-    mat(1, 1) = color_calib.intrinsics.parameters.param.fy;
-    mat(0, 2) = color_calib.intrinsics.parameters.param.cx;
-    mat(1, 2) = color_calib.intrinsics.parameters.param.cy;
-    return mat;
-}
-
-/**
- * \brief           get the intrinsics for color camera
- */
-tVectorXd cKinectManager::GetColorIntrinsicDistCoef() const
-{
-    auto color_calib = GetColorCalibration();
-    tVectorXd res = tVectorXd::Zero(8);
-    res[0] = color_calib.intrinsics.parameters.param.k1;
-    res[1] = color_calib.intrinsics.parameters.param.k2;
-    res[2] = color_calib.intrinsics.parameters.param.p1;
-    res[3] = color_calib.intrinsics.parameters.param.p2;
-    res[4] = color_calib.intrinsics.parameters.param.k3;
-    res[5] = color_calib.intrinsics.parameters.param.k4;
-    res[6] = color_calib.intrinsics.parameters.param.k5;
-    res[7] = color_calib.intrinsics.parameters.param.k6;
-    return res;
-}
+// /**
+//  * \brief           get the intrinsics for color camera
+//  */
+// tVectorXd cKinectManager::GetColorIntrinsicDistCoef() const
+// {
+//     auto color_calib = GetColorCalibration();
+//     tVectorXd res = tVectorXd::Zero(8);
+//     res[0] = color_calib.intrinsics.parameters.param.k1;
+//     res[1] = color_calib.intrinsics.parameters.param.k2;
+//     res[2] = color_calib.intrinsics.parameters.param.p1;
+//     res[3] = color_calib.intrinsics.parameters.param.p2;
+//     res[4] = color_calib.intrinsics.parameters.param.k3;
+//     res[5] = color_calib.intrinsics.parameters.param.k4;
+//     res[6] = color_calib.intrinsics.parameters.param.k5;
+//     res[7] = color_calib.intrinsics.parameters.param.k6;
+//     return res;
+// }
 
 void cKinectManager::SetColorMode(k4a_color_resolution_t new_mode)
 {
@@ -512,4 +514,32 @@ k4a_fps_t cKinectManager::GetFPS(k4a_depth_mode_t depth, k4a_color_resolution_t 
     {
         return K4A_FRAMES_PER_SECOND_30;
     }
+}
+
+void cKinectManager::UpdateIntrins(k4a_calibration_camera_t calib, tIntrinsics &intri) const
+{
+    intri.mCamMtx.setIdentity();
+    intri.mCamMtx(0, 0) = calib.intrinsics.parameters.param.fx;
+    intri.mCamMtx(1, 1) = calib.intrinsics.parameters.param.fy;
+    intri.mCamMtx(0, 2) = calib.intrinsics.parameters.param.cx;
+    intri.mCamMtx(1, 2) = calib.intrinsics.parameters.param.cy;
+
+    intri.mDistCoef.resize(8);
+    intri.mDistCoef[0] = calib.intrinsics.parameters.param.k1;
+    intri.mDistCoef[1] = calib.intrinsics.parameters.param.k2;
+    intri.mDistCoef[2] = calib.intrinsics.parameters.param.p1;
+    intri.mDistCoef[3] = calib.intrinsics.parameters.param.p2;
+    intri.mDistCoef[4] = calib.intrinsics.parameters.param.k3;
+    intri.mDistCoef[5] = calib.intrinsics.parameters.param.k4;
+    intri.mDistCoef[6] = calib.intrinsics.parameters.param.k5;
+    intri.mDistCoef[7] = calib.intrinsics.parameters.param.k6;
+}
+
+void cKinectManager::UpdateDepthIntrins()
+{
+    UpdateIntrins(GetDepthCalibration(), mDepthIntri);
+}
+void cKinectManager::UpdateColorIntrins()
+{
+    UpdateIntrins(GetColorCalibration(), mColorIntri);
 }

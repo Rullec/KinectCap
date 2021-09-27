@@ -192,6 +192,51 @@ GLFWwindow *cRender::GetWindow()
     return mWindow;
 }
 
+void cRender::MouseMoveCallback(double xpos, double ypos)
+{
+    // 1. judge the belonging
+    int cur_width_st = 0;
+    int image_id = -1;
+    int col_id = -1, row_id = -1;
+    for (int i = 0; i < mCurRenderingResource.size(); i++)
+    {
+        auto cur_resource = mCurRenderingResource[i];
+        int cur_width = cur_resource->mPresentWidth,
+            cur_height = cur_resource->mPresentHeight;
+
+        if ((xpos >= cur_width_st) && (xpos < cur_width_st + cur_width))
+        {
+
+            if (ypos >= (mHeight - cur_height))
+            {
+                image_id = i;
+                col_id = xpos - cur_width_st;
+                row_id = ypos - (mHeight - cur_height);
+            }
+        }
+        cur_width_st += cur_width;
+    }
+    if (image_id != -1)
+    {
+        // printf("belongs to image %d, row %d col %d\n", image_id, col_id, row_id);
+        // 2. get the value in this pixel
+        auto cur_resource = mCurRenderingResource[image_id];
+        int cur_width = cur_resource->mPresentWidth,
+            cur_height = cur_resource->mPresentHeight;
+        int idx = (cur_height - 1 - row_id) * cur_width + col_id;
+        float r = cur_resource->mPresentData[3 * idx + 0];
+        float g = cur_resource->mPresentData[3 * idx + 1];
+        float b = cur_resource->mPresentData[3 * idx + 2];
+        if (std::fabs(r - g) < 1e-6 && std::fabs(b - g) < 1e-6)
+        {
+            printf("[info] cur pixel depth value %d mm\n", int(r * 1e3));
+        }
+        else
+        {
+            printf("[info] cur pixel RGB value %.2f, %.2f, %.2f\n", r, g, b);
+        }
+    }
+}
 void cRender::CreateTexture(GLuint &texture, std::vector<float> &texture_data, int width, int height) const
 {
     texture = 0;
@@ -315,7 +360,7 @@ void cRender::PostUpdate()
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         {
 
-            ImVec2 init_window_size = ImVec2(400, 200);
+            ImVec2 init_window_size = ImVec2(500, 250);
             ImGui::SetNextWindowSize(init_window_size, ImGuiCond_Always);
             if (mNeedToUpdateImGuiWindowPos == true)
             {
@@ -416,6 +461,7 @@ void cRender::UpdateTextureFromRenderResource(cKinectImageResourcePtr resource)
 
 void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource)
 {
+    mCurRenderingResource = resource;
     // 1. calculate the final size
     int tex_height = 0, tex_width = 0;
     for (int i = 0; i < resource.size(); i++)
@@ -426,7 +472,7 @@ void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourc
     }
     if (tex_height != mHeight || tex_width != mWidth)
     {
-        printf("[debug] combined height %d width %d, resize\n");
+        printf("[debug] combined height %d width %d, resize\n", tex_height, tex_width);
         Resize(tex_height, tex_width);
     }
 

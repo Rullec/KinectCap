@@ -13,17 +13,17 @@ std::string gWindowName = "";
 #include "render/Render.h"
 #include "raycast/Raycast.h"
 SIM_DECLARE_PTR(cRender);
-
+cRenderPtr render = nullptr;
 int main()
 {
-    cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("color_and_depth");
+    cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("depth_to_color");
     manager->Init();
     tMatrixXi depth_image = manager->GetDepthImage();
     printf("get depth image size %d %d\n", depth_image.rows(), depth_image.cols());
     gWindowHeight = depth_image.rows();
     gWindowWidth = depth_image.cols();
 
-    cRenderPtr render = std::make_shared<cRender>(gWindowHeight, gWindowWidth);
+    render = std::make_shared<cRender>(gWindowHeight, gWindowWidth);
     render->SetKinectManager(manager);
     render->Init();
     GLFWwindow *gWindow = render->GetWindow();

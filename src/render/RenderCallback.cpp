@@ -1,12 +1,15 @@
 #include "RenderCallback.h"
+#include "render/Render.h"
+extern cRenderPtr render;
 void MouseMoveEventCallback(GLFWwindow *window, double xpos, double ypos)
 {
-    std::cout << "[log] mouse move to " << xpos << " " << ypos << std::endl;
+    // std::cout << "[log] mouse move to " << xpos << " " << ypos << std::endl;
     if (
-        (xpos >= 0) && (xpos < gWindowWidth) && (ypos >= 0) && (ypos < gWindowHeight)
+        (xpos >= 0) && (xpos < gWindowWidth) && (ypos >= 0) && (ypos < gWindowHeight))
 
-    )
-        std::cout << "need to call renderer mouse event, to get depth value\n";
+    {
+        render->MouseMoveCallback(xpos, ypos);
+    }
     // {
     //     float depth_m = GetPosValue(ypos, xpos) * 1e3;
     //     std::cout << "cur depth = " << depth_m << " mm\n";

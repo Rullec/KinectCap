@@ -21,8 +21,9 @@ void cKinectImageResource::Reset()
     mPresentData.resize(0);
     mRawData.resize(0);
 }
-void cKinectImageResource::ConvertFromKinect(k4a_image_t image, bool enable_downsampling /* = true*/)
+void cKinectImageResource::ConvertFromKinect(k4a_image_t image, bool enable_downsampling /* = true*/, float value_adjust /*= 0*/)
 {
+    mValueAdjust = value_adjust;
     mEnableDownsampling = enable_downsampling;
     if (image == NULL)
     {
@@ -82,7 +83,7 @@ void cKinectImageResource::ConvertFromDepthImage(k4a_image_t image)
             // set up present data
             {
                 int present_output_idx = (mPresentHeight - row_id - 1) * mPresentWidth + col_id;
-                float pixel_value = float(kinect_buffer[kinect_idx]) / 1e3;
+                float pixel_value = (float(kinect_buffer[kinect_idx]) + mValueAdjust) / 1e3;
                 mPresentData[3 * present_output_idx + 0] = pixel_value;
                 mPresentData[3 * present_output_idx + 1] = pixel_value;
                 mPresentData[3 * present_output_idx + 2] = pixel_value;
@@ -112,7 +113,7 @@ void cKinectImageResource::ConvertFromDepthImageRaw(k4a_image_t image)
             // set up raw data
             {
                 int raw_output_idx = (mRawHeight - row_id - 1) * mRawWidth + col_id;
-                float pixel_value = float(kinect_buffer[kinect_idx]) / 1e3;
+                float pixel_value = (float(kinect_buffer[kinect_idx]) + mValueAdjust) / 1e3 + mValueAdjust;
                 mRawData[3 * raw_output_idx + 0] = pixel_value;
                 mRawData[3 * raw_output_idx + 1] = pixel_value;
                 mRawData[3 * raw_output_idx + 2] = pixel_value;

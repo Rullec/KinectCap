@@ -15,6 +15,7 @@ public:
     void Init();
     unsigned int BindVAO();
     GLFWwindow *GetWindow();
+    void MouseMoveCallback(double xpos, double ypos);
     void UseProgram();
     void UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource);
     void PostUpdate();
@@ -30,7 +31,7 @@ protected:
     std::vector<float> mTextureData;
     const std::string mWindowName = "KinCap";
     cKinectManagerImGuiPtr mKinectManager;
-
+    std::vector<cKinectImageResourcePtr> mCurRenderingResource;
     bool mNeedToUpdateImGuiWindowPos;
     void InitGL();
     void InitTextureAndFBO();
@@ -44,3 +45,4 @@ protected:
 
     void Resize(int height, int width);
 };
+SIM_DECLARE_PTR(cRender);

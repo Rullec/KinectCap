@@ -1,12 +1,13 @@
 #include "PoseEstimator.h"
 #include "utils/MathUtil.h"
 #include "utils/LogUtil.h"
+#include "utils/TimeUtil.hpp"
 cv::Size chessboard_size = cv::Size(6, 9);
 float chessboard_gap = 50; // cube edge is 50 mm
 
 void cPoseEstimator::Estimate(const cv::Mat &color_mat,
                               const tMatrix3d &mtx,
-                              const tVectorXd &dist_coef, cv::Mat &draw_color_mat, tVector &cam_pos, tVector &cam_focus)
+                              const tVectorXd &dist_coef, cv::Mat &draw_color_mat, tVector &cam_pos, tVector &cam_focus, tVector &cam_up)
 {
     // cPoseEstimator::Test();
     // exit(1);
@@ -28,15 +29,23 @@ void cPoseEstimator::Estimate(const cv::Mat &color_mat,
 
     // 4. get image point (find chessboard)
     auto img_pts = cPoseEstimator::FindChessboardCorner(gray_mat, draw_color_mat);
-
     // for (int i = 0; i < obj_pts.size(); i++)
     // {
     //     std::cout << "image point = " << img_pts[i] << " obj point = " << obj_pts[i] << std::endl;
     // }
     // cv::imshow("find corners", draw_color_mat);
     // cv::waitKey(0);
+    if (obj_pts.size() == img_pts.size())
+    {
+        cPoseEstimator::CalcCamPos(img_pts, obj_pts, mtx, dist_coef, cam_pos, cam_focus, cam_up);
+    }
+    else
+    {
+        // SIM_WARN("Cannot find the calibrated chessboard, fail to estimate cam pose");
+        cam_pos.setZero();
+        cam_focus.setZero();
+    }
     // 4. solvePnp
-    cPoseEstimator::CalcCamPos(img_pts, obj_pts, mtx, dist_coef, cam_pos, cam_focus);
     // std::cout << "calc cam pos done\n";
     // exit(1);
 }
@@ -61,10 +70,10 @@ std::vector<cv::Point3f> cPoseEstimator::GetObjPoints()
     |--------------------------------X+
     */
     float height_from_board_bottom_to_thelowest_chessboard = 84;
-    float height_rotating_table = 0;
+    float height_rotating_table = 60;
     std::vector<cv::Point3f> img_points(0);
     cv::Point3f right_up_origin(50 * (chessboard_size.height - 1) / 2, 50 * chessboard_size.width + height_from_board_bottom_to_thelowest_chessboard + height_rotating_table, 0);
-    SIM_WARN("set height of rotating table {}", height_rotating_table);
+    // SIM_WARN("set height of rotating table {}", height_rotating_table);
     // std::cout << "right up origin = " << right_up_origin << std::endl;
     for (int col_id_from_right = 0; col_id_from_right < chessboard_size.height; col_id_from_right++)
     {
@@ -95,6 +104,27 @@ std::vector<cv::Point2f> cPoseEstimator::FindChessboardCorner(const cv::Mat &gra
         cornerSubPix(gray_mat, corners, chessboard_size, cv::Size(-1, -1), cv::TermCriteria(cv::TermCriteria::EPS | cv::TermCriteria::MAX_ITER, 30, 0.1));
         drawChessboardCorners(color_mat, chessboard_size, corners, found);
 
+        int min_x = 1e4, max_x = -1, min_y = 1e4, max_y = -1;
+        for (auto &data : corners)
+        {
+            if (data.x < min_x)
+                min_x = data.x;
+            if (data.y < min_y)
+                min_y = data.y;
+            if (data.x > max_x)
+                max_x = data.x;
+            if (data.y > max_y)
+                max_y = data.y;
+        }
+        min_x = int(min_x * 0.9);
+        min_y = int(min_y * 0.9);
+        max_x = int(max_x * 1.1);
+        max_y = int(max_y * 1.1);
+        max_x = std::min(max_x, color_mat.cols);
+        max_y = std::min(max_y, color_mat.rows);
+
+        cv::Rect rect(min_x, min_y, max_x - min_x, max_y - min_y);
+
         for (size_t r = 0; r < chessboard_size.height; r++)
         {
             for (size_t c = 0; c < chessboard_size.width; c++)
@@ -104,16 +134,20 @@ std::vector<cv::Point2f> cPoseEstimator::FindChessboardCorner(const cv::Mat &gra
                 auto cur_obj_pt = obj_pts[r * chessboard_size.width + c];
                 oss << "(" << r << "," << c << ")";
                 cv::putText(color_mat, oss.str(), cur_corner, cv::FONT_HERSHEY_PLAIN, 1, CV_RGB(0, 255, 0), 1);
-                std::ostringstream new_oss;
-                new_oss << "(" << cur_obj_pt.x << "," << cur_obj_pt.y << ")";
-                if (c % 2 == (r % 2))
-                    cur_corner.y += 10;
-                else
-                    cur_corner.y -= 10;
-                cur_corner.x -= 30;
-                cv::putText(color_mat, new_oss.str(), cur_corner, cv::FONT_HERSHEY_PLAIN, 0.7, CV_RGB(255, 0, 0), 1);
+                // std::ostringstream new_oss;
+                // new_oss << "(" << cur_obj_pt.x << "," << cur_obj_pt.y << ")";
+                // if (c % 2 == (r % 2))
+                //     cur_corner.y += 10;
+                // else
+                //     cur_corner.y -= 10;
+                // cur_corner.x -= 30;
+                // cv::putText(color_mat, new_oss.str(), cur_corner, cv::FONT_HERSHEY_PLAIN, 0.7, CV_RGB(255, 0, 0), 1);
             }
         }
+        color_mat = color_mat(rect);
+        auto new_size = cv::Size(color_mat.cols * 2, color_mat.rows * 2);
+        cv::resize(color_mat, color_mat, new_size, CV_INTER_AREA);
+        // clip the image and resize
     }
     return corners;
 }
@@ -128,7 +162,7 @@ void cPoseEstimator::CalcCamPos(
     const std::vector<cv::Point2f> &img_pts,
     const std::vector<cv::Point3f> &obj_pts,
     const tMatrix3d &cam_mat,
-    const tVectorXd &coef, tVector &cam_pos, tVector &cam_focus)
+    const tVectorXd &coef, tVector &cam_pos, tVector &cam_focus, tVector &cam_up)
 {
     // auto cameraMatrix_Front = cam_mat;
     cv::Mat cameraMatrix_Front(3, 3, CV_32FC1);
@@ -144,26 +178,30 @@ void cPoseEstimator::CalcCamPos(
     }
     // std::cout << "input cam mat = " << cameraMatrix_Front << std::endl;
     // std::cout << "input dist coef = " << dist_coef << std::endl;
-    cv::Mat cam_pts_to_world_coords_rvec, cam_pts_to_world_coords_tvec;
-    solvePnP(obj_pts, img_pts, cameraMatrix_Front, dist_coef, cam_pts_to_world_coords_rvec, cam_pts_to_world_coords_tvec);
+    cv::Mat world_pts_to_cam_coords_rvec, world_pts_to_cam_coords_tvec;
+    solvePnP(obj_pts, img_pts, cameraMatrix_Front, dist_coef, world_pts_to_cam_coords_rvec, world_pts_to_cam_coords_tvec);
 
-    // std::cout << "rotation vector = " << cam_pts_to_world_coords_rvec << std::endl;
-    // std::cout << "translation vec = " << cam_pts_to_world_coords_tvec << std::endl;
-    // std::cout << cam_pts_to_world_coords_rvec.rows << cam_pts_to_world_coords_rvec.cols << std::endl;
-    // std::cout << cam_pts_to_world_coords_rvec.type() << std::endl;
+    // std::cout << "rotation vector = " << world_pts_to_cam_coords_rvec << std::endl;
+    // std::cout << "translation vec = " << world_pts_to_cam_coords_tvec << std::endl;
+    // std::cout << world_pts_to_cam_coords_rvec.rows << world_pts_to_cam_coords_rvec.cols << std::endl;
+    // std::cout << world_pts_to_cam_coords_rvec.type() << std::endl;
 
-    tVector axis_angle = tVector(cam_pts_to_world_coords_rvec.at<double>(0, 0), cam_pts_to_world_coords_rvec.at<double>(1, 0), cam_pts_to_world_coords_rvec.at<double>(2, 0), 0);
-    tVector pos = tVector(cam_pts_to_world_coords_tvec.at<double>(0, 0), cam_pts_to_world_coords_tvec.at<double>(1, 0), cam_pts_to_world_coords_tvec.at<double>(2, 0), 1);
+    tVector axis_angle = tVector(world_pts_to_cam_coords_rvec.at<double>(0, 0), world_pts_to_cam_coords_rvec.at<double>(1, 0), world_pts_to_cam_coords_rvec.at<double>(2, 0), 0);
+    tVector pos = tVector(world_pts_to_cam_coords_tvec.at<double>(0, 0), world_pts_to_cam_coords_tvec.at<double>(1, 0), world_pts_to_cam_coords_tvec.at<double>(2, 0), 1);
     // std::cout << "axis angle = " << axis_angle.transpose() << std::endl;
     // std::cout << "pos = " << pos.transpose() << std::endl;
 
-    tMatrix trans = cMathUtil::AxisAngleToRotmat(axis_angle);
-    trans.block(0, 3, 4, 1) = pos;
-    // std::cout << "cam pts to world coords trans = \n"
-    // << trans << std::endl;
+    tMatrix cam_pts_to_world_coords = cMathUtil::AxisAngleToRotmat(axis_angle);
+    cam_pts_to_world_coords.block(0, 3, 4, 1) = pos;
+    // std::cout << "cam pts to world coords cam_pts_to_world_coords = \n"
+    //           << cam_pts_to_world_coords << std::endl;
+    cam_pts_to_world_coords = cam_pts_to_world_coords.inverse().eval();
 
-    cam_pos = trans * tVector(0, 0, 0, 1);
-    tVector cam_focus_dir = trans * tVector(0, 0, 1, 0);
+    cam_pos = cam_pts_to_world_coords * tVector(0, 0, 0, 1);
+
+    // the obj coordinates: Y axis from up to down (screen)
+    cam_up = cam_pts_to_world_coords * tVector(0, -1, 0, 0);
+    tVector cam_focus_dir = cam_pts_to_world_coords * tVector(0, 0, 1, 0);
     double t = -cam_pos[2] / cam_focus_dir[2];
     cam_focus = cam_pos + cam_focus_dir * t;
     // std::cout << "cam pos = " << cam_pos.transpose() << std::endl;

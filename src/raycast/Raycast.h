@@ -13,6 +13,7 @@ public:
     virtual void CalcResult(
         const tVector3f &cam_pos,
         const tVector3f &cam_center,
+        const tVector3f &cam_up,
         float fov,
         int height,
         int width,

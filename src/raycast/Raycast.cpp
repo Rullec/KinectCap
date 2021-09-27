@@ -55,12 +55,12 @@ void cDepthImageCaster::InitObstacles()
 void cDepthImageCaster::CalcResult(
     const tVector3f &cam_pos,
     const tVector3f &cam_center,
+    const tVector3f &cam_up,
     float fov,
     int height,
     int width,
     std::vector<float> &data)
 {
-    tVector3f cam_up(0, 1, 0);
     float near_plane = 1e-2;
     float far_plane = 1e3;
     auto cam = std::make_shared<cArcBallCamera>(cam_pos, cam_center,
@@ -74,8 +74,8 @@ void cDepthImageCaster::CalcResult(
     for (int row = 0; row < height; row++)
         for (int col = 0; col < width; col++)
         {
-            int raw_idx = row * width + col;
-            int output_idx = (height - 1 - row) * width + col;
+            int raw_idx = (height - 1 - row) * width + col;
+            int output_idx = row * width + col;
             float val = data_eigen[raw_idx];
             data[3 * output_idx + 0] = val;
             data[3 * output_idx + 1] = val;

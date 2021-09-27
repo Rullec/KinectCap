@@ -34,3 +34,20 @@ cv::Mat cOpencvUtil::ConvertFloatArrayToGrayscaleMat(int height, int width, int 
         }
     return new_mat;
 }
+
+void cOpencvUtil::ConvertRGBMatToFloatArray(const cv::Mat &mat, int &height, int &width, std::vector<float> &array)
+{
+    height = mat.rows;
+    width = mat.cols;
+    array.resize(3 * height * width);
+
+    for (int row = 0; row < height; row++)
+        for (int col = 0; col < width; col++)
+        {
+            const auto &pixel = mat.at<Vec3b>(row, col);
+            int buffer_idx = ((height - 1 - row) * width + col) * 3;
+            array[buffer_idx + 0] = float(pixel[2]) / 255; // R
+            array[buffer_idx + 1] = float(pixel[1]) / 255; // G
+            array[buffer_idx + 2] = float(pixel[0]) / 255; // B
+        }
+}

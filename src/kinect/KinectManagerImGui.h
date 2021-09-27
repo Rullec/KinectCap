@@ -33,10 +33,17 @@ protected:
     bool mEnablePoseEstimate;
     bool mEnableShowRaycast;
     bool mEnableDownsample;
+    bool mDebugDrawChessboard;
+    bool mEnableDepthDiff;
+    bool mLockEstimation;
     cDepthImageCasterPtr mRaycaster;
     cKinectImageResourcePtr mRaycastDepthResource;
+    cKinectImageResourcePtr mDebugChessboardResource;
+    cKinectImageResourcePtr mDepthDiffResource;
     float mRaycastFov;
-    tVector3f mEstimatedCamPos, mEstimatedCamFocus;
+    float mDepthAdjustBias;
+    tVector3f mEstimatedCamPos, mEstimatedCamFocus, mEstimatedCamUp;
+
     cKinectImageResourcePtr GetDepthImageNew();
     cKinectImageResourcePtr GetColorImageNew();
     std::vector<cKinectImageResourcePtr> GetDepthToColorImageNew();
@@ -45,6 +52,7 @@ protected:
     void ExportKinectConfiguration(std::string outputname);
     void InitRaycastDepthImage();
     void UpdateRaycastResult(cKinectImageResourcePtr depth_result);
+    void UpdateDepthDiffResult(cKinectImageResourcePtr diff_depth);
 };
 
 SIM_DECLARE_PTR(cKinectManagerImGui);

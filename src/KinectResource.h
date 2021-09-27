@@ -8,6 +8,7 @@ class cKinectImageResource
 public:
     cKinectImageResource();
     void ConvertFromKinect(k4a_image_t image, bool enable_downsampling = true);
+    void Reset();
     int mHeight;
     int mWidth;
     int mChannels;

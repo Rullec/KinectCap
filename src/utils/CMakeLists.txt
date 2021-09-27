@@ -19,6 +19,7 @@ Rand.cpp
 TimeUtil.cpp
 SysUtil.cpp
 DepthImageSaver.cpp
+OpenCVUtil.cpp
 )
 target_link_libraries(utils_lib JSON)
 

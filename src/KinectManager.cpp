@@ -449,6 +449,7 @@ tMatrixXi cKinectManager::GetDepthToColorImage() const
  */
 tMatrix3d cKinectManager::GetColorIntrinsicMtx() const
 {
+
     auto color_calib = GetColorCalibration();
     tMatrix3d mat = tMatrix3d::Identity();
 

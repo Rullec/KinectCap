@@ -1,7 +1,9 @@
 #include "KinectManagerImGui.h"
+#include "utils/OpenCVUtil.h"
 #include "utils/FileUtil.h"
 #include "utils/LogUtil.h"
 #include "utils/TimeUtil.hpp"
+#include "PoseEstimator.h"
 #include "KinectResource.h"
 #include <iostream>
 const std::vector<const char *> gDisplayModeStr =
@@ -16,7 +18,8 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
         display_mode);
     mCurDepthImage = std::make_shared<cKinectImageResource>();
     mCurColorImage = std::make_shared<cKinectImageResource>();
-    mEnableDownsample = true;
+    mEnableDownsample = false;
+    mEnablePoseEstimate = false;
 }
 std::string cKinectManagerImGui::BuildStrFromDisplayMode(eDisplayMode mode)
 {
@@ -78,27 +81,15 @@ void cKinectManagerImGui::UpdateGui()
                  gColorModeStr.size());
 
     ImGui::Checkbox("downsample", &mEnableDownsample);
+    ImGui::SameLine();
+    ImGui::Checkbox("pose estimation", &mEnablePoseEstimate);
+    ImGui::SameLine();
     bool capture = ImGui::Button("capture!");
-    if (capture)
-    {
-        bool confirm_output = true;
-        if (mEnableDownsample == true)
-        {
-            SIM_INFO("Downsample is enabled at this moment, and the output image will be effected. please push button again");
-            mEnableDownsample = false;
-            confirm_output = false;
-        }
-        if (
-            mDisplayMode == eDisplayMode::ONLY_COLOR ||
-            mDisplayMode == eDisplayMode::ONLY_DEPTH)
-        {
-            SIM_INFO("only_color/only_depth is enabled at this moment, please adjust");
-            confirm_output = false;
-        }
-        if (confirm_output)
-            ExportCapture();
-    }
+    if (mEnablePoseEstimate)
+        PoseEstimate();
 
+    if (capture)
+        ExportCapture();
     mDisplayMode = static_cast<eDisplayMode>(display_mode);
     // SetDepthMode(static_cast<k4a_depth_mode_t>(depth_mode));
     SetColorAndDepthMode(
@@ -109,25 +100,42 @@ void cKinectManagerImGui::UpdateGui()
 }
 void cKinectManagerImGui::ExportCapture()
 {
-    if (cFileUtil::ExistsDir(gOutputImagedir) == false)
-        cFileUtil::CreateDir(gOutputImagedir.c_str());
+    bool confirm_output = true;
+    if (mEnableDownsample == true)
+    {
+        SIM_INFO("Downsample is enabled at this moment, and the output image will be effected. please push button again");
+        mEnableDownsample = false;
+        confirm_output = false;
+    }
+    if (
+        mDisplayMode == eDisplayMode::ONLY_COLOR ||
+        mDisplayMode == eDisplayMode::ONLY_DEPTH)
+    {
+        SIM_INFO("only_color/only_depth is enabled at this moment, please adjust");
+        confirm_output = false;
+    }
+    if (confirm_output)
+    {
+        if (cFileUtil::ExistsDir(gOutputImagedir) == false)
+            cFileUtil::CreateDir(gOutputImagedir.c_str());
 
-    std::string depth_png_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".png";
-    std::string depth_txt_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".txt";
-    std::string color_png_name = gOutputImagedir + "/color" + std::to_string(gOutputImageIdx) + ".png";
-    std::string conf_name = gOutputImagedir + "/conf" + std::to_string(gOutputImageIdx) + ".txt";
-    ExportDepthToPng(mCurDepthImage->mData.data(), mCurDepthImage->mHeight, mCurDepthImage->mWidth, mCurDepthImage->mChannels, depth_png_name);
-    ExportDepthToTxt(mCurDepthImage->mData.data(),
-                     mCurDepthImage->mHeight, mCurDepthImage->mWidth, mCurDepthImage->mChannels, depth_txt_name);
-    ExportRGBColorToPng(mCurColorImage->mData.data(),
-                        mCurColorImage->mHeight, mCurColorImage->mWidth, mCurColorImage->mChannels, color_png_name);
-    ExportKinectConfiguration(conf_name);
-    SIM_INFO("depth png {}, depth txt {}, color png {}, kinect conf {}",
-             depth_png_name,
-             depth_txt_name,
-             color_png_name,
-             conf_name);
-    gOutputImageIdx += 1;
+        std::string depth_png_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".png";
+        std::string depth_txt_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".txt";
+        std::string color_png_name = gOutputImagedir + "/color" + std::to_string(gOutputImageIdx) + ".png";
+        std::string conf_name = gOutputImagedir + "/conf" + std::to_string(gOutputImageIdx) + ".txt";
+        ExportDepthToPng(mCurDepthImage->mData.data(), mCurDepthImage->mHeight, mCurDepthImage->mWidth, mCurDepthImage->mChannels, depth_png_name);
+        ExportDepthToTxt(mCurDepthImage->mData.data(),
+                         mCurDepthImage->mHeight, mCurDepthImage->mWidth, mCurDepthImage->mChannels, depth_txt_name);
+        ExportRGBColorToPng(mCurColorImage->mData.data(),
+                            mCurColorImage->mHeight, mCurColorImage->mWidth, mCurColorImage->mChannels, color_png_name);
+        ExportKinectConfiguration(conf_name);
+        SIM_INFO("depth png {}, depth txt {}, color png {}, kinect conf {}",
+                 depth_png_name,
+                 depth_txt_name,
+                 color_png_name,
+                 conf_name);
+        gOutputImageIdx += 1;
+    }
 }
 void cKinectManagerImGui::ExportKinectConfiguration(std::string output_name)
 {
@@ -162,27 +170,28 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
     {
     case eDisplayMode::COLOR_AND_DEPTH:
     {
-        auto color = GetColorImageNew();
-        auto depth = GetDepthImageNew();
-        if (color != nullptr)
-            res.push_back(color);
-        if (depth != nullptr)
-            res.push_back(depth);
+        mCurColorImage = GetColorImageNew();
+        mCurDepthImage = GetDepthImageNew();
+        if (mCurColorImage != nullptr)
+            res.push_back(mCurColorImage);
+        if (mCurDepthImage != nullptr)
+            res.push_back(mCurDepthImage);
         break;
     }
     case eDisplayMode::ONLY_COLOR:
     {
-        auto color = GetColorImageNew();
-        if (color != nullptr)
-            res.push_back(color);
-
+        mCurColorImage = GetColorImageNew();
+        if (mCurColorImage != nullptr)
+            res.push_back(mCurColorImage);
+        mCurDepthImage->Reset();
         break;
     }
     case eDisplayMode::ONLY_DEPTH:
     {
-        auto depth = GetDepthImageNew();
-        if (depth != nullptr)
-            res.push_back(depth);
+        mCurDepthImage = GetDepthImageNew();
+        if (mCurDepthImage != nullptr)
+            res.push_back(mCurDepthImage);
+        mCurColorImage->Reset();
         break;
     }
     case eDisplayMode::DEPTH_TO_COLOR:
@@ -296,4 +305,39 @@ cKinectImageResourcePtr cKinectManagerImGui::GetColorImageNew()
     k4a_image_release(image);
     k4a_capture_release(capture);
     return mCurColorImage;
+}
+
+void cKinectManagerImGui::PoseEstimate()
+{
+    if (mCurColorImage->mData.size() != 0)
+    {
+        cv::Mat rgb_mat = cOpencvUtil::ConvertFloatArrayToRGBMat(mCurColorImage->mHeight,
+                                                                 mCurColorImage->mWidth, mCurColorImage->mData.data());
+
+        tMatrix3d mtx = GetColorIntrinsicMtx();
+        tVectorXd dist_coef = GetColorIntrinsicDistCoef();
+        cv::Mat debug_color_mat;
+        tVector cam_pos, cam_focus;
+        if (mCurColorImage->mEnableDownsampling)
+        {
+            /*
+            https://answers.opencv.org/question/118918/does-the-resolution-of-an-image-affect-the-distortion-co-efficients/
+            https://dsp.stackexchange.com/questions/6055/how-does-resizing-an-image-affect-the-intrinsic-camera-matrix
+
+            if downsample, mtx/=2, coef keep the same
+            */
+            mtx /= 2;
+        }
+        // cTimeUtil::Begin("calc_cam_pos");
+        cPoseEstimator::Estimate(
+            rgb_mat, mtx, dist_coef, debug_color_mat, cam_pos, cam_focus);
+
+        ImGui::Text("cam_pos = %.1f, %.1f, %.1f", cam_pos[0], cam_pos[1], cam_pos[2]);
+        ImGui::Text("cam_focus = %.1f, %.1f, %.1f", cam_focus[0], cam_focus[1], cam_focus[2]);
+        // std::cout << "cam pos = " << cam_pos.transpose() << ", cam focus = " << cam_focus.transpose() << std::endl;
+    }
+    else
+    {
+        std::cout << "no color resource\n";
+    }
 }

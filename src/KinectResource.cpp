@@ -8,7 +8,13 @@ cKinectImageResource::cKinectImageResource()
     mData.resize(0);
     mEnableDownsampling = true;
 }
-
+void cKinectImageResource::Reset()
+{
+    mHeight = 0;
+    mWidth = 0;
+    mChannels = -1;
+    mData.resize(0);
+}
 void cKinectImageResource::ConvertFromKinect(k4a_image_t image, bool enable_downsampling /* = true*/)
 {
     mEnableDownsampling = enable_downsampling;

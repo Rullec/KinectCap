@@ -29,11 +29,14 @@ protected:
     k4a_calibration_t mCalibration;
     k4a_transformation_t mCalibratinTrans;
     cKinectImageResourcePtr mCurDepthImage, mCurColorImage;
+    bool mEnablePoseEstimate;
     bool mEnableDownsample;
+
     cKinectImageResourcePtr GetDepthImageNew();
     cKinectImageResourcePtr GetColorImageNew();
     std::vector<cKinectImageResourcePtr> GetDepthToColorImageNew();
     void ExportCapture();
+    void PoseEstimate();
     void ExportKinectConfiguration(std::string outputname);
 };
 

@@ -9,6 +9,7 @@ set(
     ./src/Render.cpp
     ./src/RenderCallback.cpp
     ./src/KinectMode.cpp
+    ./src/PoseEstimator.cpp
 )
 
 # custom cmake scripts
@@ -18,6 +19,7 @@ include(./cmake/configure_movecmd.cmake)
 # include path and lib path
 include_directories(./includes)
 include_directories(./imgui)
+include_directories(./calib)
 include_directories(./src)
 link_directories(./lib)
 
@@ -70,6 +72,8 @@ set(libs utils_lib imgui_lib ${GL_LIBS} ${OpenCV_LIBS})
 
 add_executable(main ./src/main.cpp ${SRC})
 target_link_libraries(main ${libs} k4a)
+# add_executable(main ./calib/main_calib.cpp ./calib/OpenCVUtil.cpp)
+target_link_libraries(main ${libs})
 
 if(WIN32)
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")

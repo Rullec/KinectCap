@@ -1,20 +1,10 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(KinectCap VERSION 0.1.0)
 
-set(
-    SRC
-    ./src/KinectManager.cpp
-    ./src/KinectResource.cpp
-    ./src/KinectManagerImGui.cpp
-    ./src/Render.cpp
-    ./src/RenderCallback.cpp
-    ./src/KinectMode.cpp
-    ./src/PoseEstimator.cpp
-)
-
 # custom cmake scripts
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(./cmake/configure_movecmd.cmake)
+include(./cmake/configure_optix.cmake)
 
 # include path and lib path
 include_directories(./includes)
@@ -64,13 +54,40 @@ else()
     add_definitions(-g)
 endif()
 
+
+include_directories("E:/SimpleClothSimulator/src")
+add_definitions(-D USE_OPTIX)
+set(CMAKE_MODULE_PATH
+"${PROJECT_SOURCE_DIR}/cmake"
+#  "${CMAKE_CURRENT_SOURCE_DIR}/../cmake"
+${CMAKE_MODULE_PATH}
+)
+
+find_package(CUDA REQUIRED)
+find_package(OptiX REQUIRED)
+include_directories("C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v11.1\\include")
+include_directories(${CUDA_TOOLKIT_INCLUDE})
+
+if (CUDA_TOOLKIT_ROOT_DIR)
+  include_directories(${CUDA_TOOLKIT_ROOT_DIR}/include)
+endif()
+include_directories(${OptiX_INCLUDE})
+
+if (WIN32)
+add_definitions(-DNOMINMAX)
+endif()
+
+
 # add sources
 add_subdirectory(./imgui)
 add_subdirectory(./src/utils)
+add_subdirectory(./src/render)
+add_subdirectory(./src/kinect)
+add_subdirectory(./src/raycast)
 
-set(libs utils_lib imgui_lib ${GL_LIBS} ${OpenCV_LIBS})
+set(libs utils_lib imgui_lib kinect_lib raycast_lib render_lib ${GL_LIBS} ${OpenCV_LIBS})
 
-add_executable(main ./src/main.cpp ${SRC})
+add_executable(main ./src/main.cpp)
 target_link_libraries(main ${libs} k4a)
 # add_executable(main ./calib/main_calib.cpp ./calib/OpenCVUtil.cpp)
 target_link_libraries(main ${libs})

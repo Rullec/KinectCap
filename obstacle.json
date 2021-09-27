@@ -1,0 +1,42 @@
+[
+    {
+        "object_name": "cylinder",
+        "type": "custom",
+        "mesh_path": "data/clinder.obj",
+        "target_aabb": [
+            0.1,
+            0.202,
+            0.1
+        ],
+        "translation": [
+            0,
+            0.0635,
+            0
+        ],
+        "orientation": [
+            0,
+            0,
+            0
+        ]
+    },
+    {
+        "object_name": "rotating_table",
+        "type": "custom",
+        "mesh_path": "data/clinder.obj",
+        "target_aabb": [
+            0.3,
+            0.0635,
+            0.3
+        ],
+        "translation": [
+            0,
+            0,
+            0
+        ],
+        "orientation": [
+            0,
+            0,
+            0
+        ]
+    }
+]

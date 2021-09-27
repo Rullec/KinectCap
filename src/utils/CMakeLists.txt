@@ -20,6 +20,8 @@ TimeUtil.cpp
 SysUtil.cpp
 DepthImageSaver.cpp
 OpenCVUtil.cpp
+PoseEstimator.cpp
+ObjUtil.cpp
 )
 target_link_libraries(utils_lib JSON)
 

@@ -9,7 +9,7 @@ public:
     static void Estimate(
         const cv::Mat &mat,
         const tMatrix3d &cam_mat,
-        const tVectorXd &coef, cv::Mat &new_debug_color_mat, tVector &cam_pos, tVector &cam_focus, tVector & cam_up);
+        const tVectorXd &coef, cv::Mat &new_debug_color_mat, tVector &cam_pos, tVector &cam_focus, tVector &cam_up);
 
 protected:
     static void Test();
@@ -22,5 +22,5 @@ protected:
         const std::vector<cv::Point2f> &img_pts,
         const std::vector<cv::Point3f> &obj_pts,
         const tMatrix3d &cam_mat,
-        const tVectorXd &coef, tVector &cam_pos, tVector &cam_focus, tVector & cam_up);
+        const tVectorXd &coef, tVector &cam_pos, tVector &cam_focus, tVector &cam_up);
 };

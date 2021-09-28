@@ -98,15 +98,29 @@ tMatrixXi convert_k4a_depth_image_to_eigen_image(k4a_image_t image)
  */
 tMatrixXi cKinectManager::GetDepthImage()
 {
-    // get captured
-    auto capture = GetCapture();
-    k4a_image_t image = k4a_capture_get_depth_image(capture);
-    tMatrixXi depth_mat = convert_k4a_depth_image_to_eigen_image(image);
-    // tMatrixXi
-    // release the image
-    k4a_image_release(image);
-    k4a_capture_release(capture);
-    return depth_mat;
+    switch (mDepthMode)
+    {
+    case K4A_DEPTH_MODE_PASSIVE_IR:
+    {
+        return GetIrImage();
+        break;
+    }
+
+    default:
+    {
+        // get captured
+        auto capture = GetCapture();
+        k4a_image_t image = k4a_capture_get_depth_image(capture);
+        tMatrixXi depth_mat = convert_k4a_depth_image_to_eigen_image(image);
+        // tMatrixXi
+        // release the image
+        k4a_image_release(image);
+        k4a_capture_release(capture);
+        return depth_mat;
+    }
+    break;
+    }
+    return tMatrixXi::Zero(0, 0);
 }
 
 double cKinectManager::GetDepthUnit_mm() { return 1; }
@@ -543,10 +557,18 @@ void cKinectManager::UpdateIntrins(k4a_calibration_camera_t calib, tIntrinsics &
 void cKinectManager::UpdateDepthIntrins()
 {
     UpdateIntrins(GetDepthCalibration(), mDepthIntri);
+    // std::cout << "depth intrins mtx = \n"
+    //           << mDepthIntri.mCamMtx << std::endl;
+    // std::cout << "depth intrins distcoef = \n"
+    //           << mDepthIntri.mDistCoef.transpose() << std::endl;
 }
 void cKinectManager::UpdateColorIntrins()
 {
     UpdateIntrins(GetColorCalibration(), mColorIntri);
+    // std::cout << "color intrins mtx = \n"
+    //           << mColorIntri.mCamMtx << std::endl;
+    // std::cout << "color intrins distcoef = \n"
+    //           << mColorIntri.mDistCoef.transpose() << std::endl;
 }
 
 double cKinectManager::GetColorVFOV(k4a_color_resolution_t mode)
@@ -616,6 +638,11 @@ double cKinectManager::GetDepthVFOV(k4a_depth_mode_t mode)
     case K4A_DEPTH_MODE_WFOV_UNBINNED:
     {
         vfov = 120;
+        break;
+    }
+    case K4A_DEPTH_MODE_PASSIVE_IR:
+    {
+        vfov = 60;
         break;
     }
     default:

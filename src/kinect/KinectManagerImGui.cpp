@@ -11,8 +11,13 @@ const std::vector<const char *> gDisplayModeStr =
      "only_depth",
      "color_and_depth",
      "depth_to_color"};
+
+const std::vector<const char *> gCamPoseEstimationMode = {
+    "calib_from_color",
+    "calib_from_ir"};
 cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
-    : cKinectManager("720p_16_9", "nfov_unbinned")
+    // : cKinectManager("720p_16_9", "nfov_unbinned")
+    : cKinectManager("720p_16_9", "passive_ir")
 {
     mDisplayMode = cKinectManagerImGui::BuildDisplayModeFromStr(
         display_mode);
@@ -26,8 +31,10 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
     mDebugDrawChessboard = false;
     mLockEstimation = false;
     mEnableDepthDiff = true;
+    mPoseEstimateMode = 0;
     mRaycastFov = 60;
     mDepthAdjustBias = 0;
+    mEnableCompareDistort = false;
     InitRaycastDepthImage();
 }
 std::string cKinectManagerImGui::BuildStrFromDisplayMode(eDisplayMode mode)
@@ -51,6 +58,20 @@ eDisplayMode cKinectManagerImGui::BuildDisplayModeFromStr(std::string str)
     return eDisplayMode::NUM_OF_DISPLAY_MODE;
 }
 #include "KinectMode.h"
+std::vector<std::string> SplitString(std::string raw_str, std::string deli)
+{
+    size_t pos = 0;
+    std::string token;
+    std::vector<std::string> strs{};
+    while ((pos = raw_str.find(deli)) != std::string::npos)
+    {
+        token = raw_str.substr(0, pos);
+        strs.push_back(token);
+
+        raw_str.erase(0, pos + deli.length());
+    }
+    return strs;
+}
 void cKinectManagerImGui::Init()
 {
     cKinectManager::Init();
@@ -108,9 +129,13 @@ void cKinectManagerImGui::UpdateGui()
     {
         ImGui::Checkbox("cam pos unlocked", &mLockEstimation);
     }
+
+    ImGui::SameLine();
+    ImGui::Checkbox("show_comp undistorted", &mEnableCompareDistort);
+
     if (mEnableShowRaycast)
     {
-        ImGui::DragFloat("raycast fov", &mRaycastFov, 1e-1, 40, 80);
+        ImGui::DragFloat("raycast fov", &mRaycastFov, 1e-1, 50, 120);
     }
     ImGui::DragFloat("depth adjust", &mDepthAdjustBias, 1, -50, 50);
     bool capture = ImGui::Button("capture!");
@@ -119,9 +144,22 @@ void cKinectManagerImGui::UpdateGui()
     // cTimeUtil::Begin("pose_est");
     if (mEnablePoseEstimate)
     {
+        ImGui::Combo("estimate_mode", &mPoseEstimateMode, gCamPoseEstimationMode.data(), gCamPoseEstimationMode.size());
         if (mLockEstimation == false)
         {
-            PoseEstimate();
+            if (mPoseEstimateMode == 0)
+            {
+
+                PoseEstimateFromColor();
+            }
+            else if (mPoseEstimateMode == 1)
+            {
+                PoseEstimateFromIR();
+            }
+            else
+            {
+                SIM_ERROR("unsupported pose estimation mode {}", mPoseEstimateMode);
+            }
         }
     }
     else
@@ -130,9 +168,9 @@ void cKinectManagerImGui::UpdateGui()
         mEstimatedCamFocus.setZero();
         mEstimatedCamUp.setZero();
     }
-    ImGui::Text("cam_pos = %.1f, %.1f, %.1f, ", cam_pos[0], cam_pos[1], cam_pos[2]);
-    ImGui::Text("cam_focus = %.1f, %.1f, %.1f", cam_focus[0], cam_focus[1], cam_focus[2]);
-    ImGui::Text("cam_up = %.2f, %.2f, %.2f", cam_up[0], cam_up[1], cam_up[2]);
+    ImGui::Text("cam_pos = %.1f, %.1f, %.1f, ", mEstimatedCamPos[0], mEstimatedCamPos[1], mEstimatedCamPos[2]);
+    ImGui::Text("cam_focus = %.1f, %.1f, %.1f", mEstimatedCamFocus[0], mEstimatedCamFocus[1], mEstimatedCamFocus[2]);
+    ImGui::Text("cam_up = %.2f, %.2f, %.2f", mEstimatedCamUp[0], mEstimatedCamUp[1], mEstimatedCamUp[2]);
     // cTimeUtil::End("pose_est");
 
     if (capture)
@@ -152,13 +190,13 @@ void cKinectManagerImGui::UpdateGui()
 void cKinectManagerImGui::ExportCapture()
 {
     bool confirm_output = true;
-    if (
-        mDisplayMode == eDisplayMode::ONLY_COLOR ||
-        mDisplayMode == eDisplayMode::ONLY_DEPTH)
-    {
-        SIM_INFO("only_color/only_depth is enabled at this moment, please adjust");
-        confirm_output = false;
-    }
+    // if (
+    //     mDisplayMode == eDisplayMode::ONLY_COLOR ||
+    //     mDisplayMode == eDisplayMode::ONLY_DEPTH)
+    // {
+    //     SIM_INFO("only_color/only_depth is enabled at this moment, please adjust");
+    //     confirm_output = false;
+    // }
     if (confirm_output)
     {
         if (cFileUtil::ExistsDir(gOutputImagedir) == false)
@@ -168,11 +206,15 @@ void cKinectManagerImGui::ExportCapture()
         std::string depth_txt_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".txt";
         std::string color_png_name = gOutputImagedir + "/color" + std::to_string(gOutputImageIdx) + ".png";
         std::string conf_name = gOutputImagedir + "/conf" + std::to_string(gOutputImageIdx) + ".txt";
-        ExportDepthToPng(mCurDepthImage->mRawData.data(), mCurDepthImage->mRawHeight, mCurDepthImage->mRawWidth, mCurDepthImage->mChannels, depth_png_name);
-        ExportDepthToTxt(mCurDepthImage->mRawData.data(),
-                         mCurDepthImage->mRawHeight, mCurDepthImage->mRawWidth, mCurDepthImage->mChannels, depth_txt_name);
-        ExportRGBColorToPng(mCurColorImage->mRawData.data(),
-                            mCurColorImage->mRawHeight, mCurColorImage->mRawWidth, mCurColorImage->mChannels, color_png_name);
+        if (mCurDepthImage->mRawHeight != 0)
+        {
+            ExportDepthToPng(mCurDepthImage->mRawData.data(), mCurDepthImage->mRawHeight, mCurDepthImage->mRawWidth, mCurDepthImage->mChannels, depth_png_name);
+            ExportDepthToTxt(mCurDepthImage->mRawData.data(),
+                             mCurDepthImage->mRawHeight, mCurDepthImage->mRawWidth, mCurDepthImage->mChannels, depth_txt_name);
+        }
+        if (mCurColorImage->mRawHeight != 0)
+            ExportRGBColorToPng(mCurColorImage->mRawData.data(),
+                                mCurColorImage->mRawHeight, mCurColorImage->mRawWidth, mCurColorImage->mChannels, color_png_name);
         ExportKinectConfiguration(conf_name);
         SIM_INFO("depth png {}, depth txt {}, color png {}, kinect conf {}",
                  depth_png_name,
@@ -188,6 +230,11 @@ void cKinectManagerImGui::ExportKinectConfiguration(std::string output_name)
     fout << "display mode = " << gDisplayModeStr[mDisplayMode] << std::endl;
     fout << "color mode = " << gColorModeStr[mColorMode] << std::endl;
     fout << "depth mode = " << gDepthModeStr[mDepthMode] << std::endl;
+    fout << "estimate cam pos = " << mEstimatedCamPos.transpose() << std::endl;
+    fout << "estimate cam focus = " << mEstimatedCamFocus.transpose() << std::endl;
+    fout << "estimate cam up = " << mEstimatedCamUp.transpose() << std::endl;
+    fout << "vfov = " << this->mRaycastFov << std::endl;
+    fout << "recommend vfov = " << this->GetCurDepthVFOV() << std::endl;
     fout << "captured at " << cTimeUtil::GetSystemTime() << std::endl;
     fout.close();
 }
@@ -198,12 +245,24 @@ cKinectImageResourcePtr cKinectManagerImGui::GetDepthImageNew()
     {
         return nullptr;
     }
+    else
+    {
+        auto capture = GetCapture();
+        if (mDepthMode == K4A_DEPTH_MODE_PASSIVE_IR)
+        {
+            k4a_image_t image = k4a_capture_get_ir_image(capture);
+            mCurDepthImage->ConvertFromKinect(image, mEnableDownsample, 0);
+            k4a_image_release(image);
+        }
+        else
+        {
+            k4a_image_t image = k4a_capture_get_depth_image(capture);
+            mCurDepthImage->ConvertFromKinect(image, mEnableDownsample, mDepthAdjustBias);
+            k4a_image_release(image);
+        }
+        k4a_capture_release(capture);
+    }
 
-    auto capture = GetCapture();
-    k4a_image_t image = k4a_capture_get_depth_image(capture);
-    mCurDepthImage->ConvertFromKinect(image, mEnableDownsample, mDepthAdjustBias);
-    k4a_image_release(image);
-    k4a_capture_release(capture);
     return mCurDepthImage;
 }
 
@@ -272,6 +331,13 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
         res.push_back(mDebugChessboardResource);
     }
 
+
+    if(mEnableCompareDistort == true)
+    {
+        // if color is availiable, undistort and compare
+
+        // if depth is availiable, undistort and compare
+    }
     return res;
 }
 #include "utils/TimeUtil.hpp"
@@ -376,7 +442,7 @@ cKinectImageResourcePtr cKinectManagerImGui::GetColorImageNew()
     return mCurColorImage;
 }
 
-void cKinectManagerImGui::PoseEstimate()
+void cKinectManagerImGui::PoseEstimateFromColor()
 {
     if (mCurColorImage->mPresentData.size() != 0)
     {
@@ -418,8 +484,67 @@ void cKinectManagerImGui::PoseEstimate()
     }
     else
     {
-        std::cout << "no color resource\n";
+        // std::cout << "no color resource, calibration ret\n";
         mDebugChessboardResource->Reset();
+    }
+}
+cv::Mat LoadMatFromTextFile(std::string ir_path)
+{
+    //  = "output/depth0.txt";
+    std::string cont = cFileUtil::ReadTextFile(ir_path);
+    std::vector<std::string> lines = SplitString(cont, "\n");
+    std::string first_line = lines[0];
+    lines.erase(lines.begin());
+    std::
+        vector<std::string>
+            first_line_splited = SplitString(first_line, " ");
+    int width = std::stoi(first_line_splited[1]);
+    int height = std::stoi(first_line_splited[3]);
+
+    cv::Mat ir_image(cv::Size(width, height), CV_8UC3);
+    for (int row = 0; row < height; row++)
+    {
+        std::vector<std::string> row_cont = SplitString(lines[row], " ");
+        for (int col = 0; col < width; col++)
+        {
+            float res = std::stof(row_cont[col]);
+            ;
+            uint8_t val = int(res * 255) > 255 ? 255 : uint8_t(res * 255);
+            // std::cout << res << "->" << int(val) << std::endl;
+            ir_image.at<cv::Vec3b>(row, col) = cv::Vec3b(val, val, val);
+        }
+    }
+    return ir_image;
+}
+void cKinectManagerImGui::PoseEstimateFromIR()
+{
+    std::cout << "begin pose ir est\n";
+    if (this->mDepthMode == K4A_DEPTH_MODE_PASSIVE_IR && mCurDepthImage->mRawData.size() != 0)
+    {
+        // valid ir image
+        // 1. convert it to cv::mat
+        // begin to calculate cam pose from IR image
+        {
+            int height = mCurDepthImage->mRawHeight,
+                width = mCurDepthImage->mRawWidth;
+            cv::Mat debug_image(cv::Size(width, height), CV_8UC3);
+            tVector cam_pos = tVector::Zero(), cam_focus = tVector::Zero(), cam_up = tVector::Zero();
+            cv::Mat ir_image = cOpencvUtil::ConvertFloatArrayToRGBMat(height, width, mCurDepthImage->mRawData.data());
+            cPoseEstimator::Estimate(
+                ir_image,
+                mDepthIntri.mCamMtx, mDepthIntri.mDistCoef, debug_image, cam_pos, cam_focus, cam_up);
+
+            std::cout << "cam_pos = " << cam_pos.transpose() << std::endl;
+            std::cout << "cam_up = " << cam_up.transpose() << std::endl;
+            std::cout << "cam_focus = " << cam_focus.transpose() << std::endl;
+            mEstimatedCamPos = cam_pos.segment(0, 3).cast<float>();
+            mEstimatedCamFocus = cam_focus.segment(0, 3).cast<float>();
+            mEstimatedCamUp = cam_up.segment(0, 3).cast<float>();
+            // cv::imshow("ir", ir_image);
+            // cv::imshow("debug", debug_image);
+            // cv::waitKey(0);
+            // exit(1);
+        }
     }
 }
 #include "raycast/Raycast.h"
@@ -483,8 +608,14 @@ double cKinectManagerImGui::GetCurDepthVFOV()
 
 void cKinectManagerImGui::SetColorAndDepthMode(k4a_depth_mode_t new_depth_mode, k4a_color_resolution_t new_color_mode)
 {
+    if (new_depth_mode == K4A_DEPTH_MODE_PASSIVE_IR && mDisplayMode == eDisplayMode::DEPTH_TO_COLOR)
+    {
+        SIM_WARN("depth mode is passive IR, the mode depth_to_color is converted");
+        mDisplayMode = eDisplayMode::COLOR_AND_DEPTH;
+    }
     if (new_depth_mode != mDepthMode || new_color_mode != mColorMode)
     {
+
         cKinectManager::SetColorAndDepthMode(new_depth_mode, new_color_mode);
         mRaycastFov = GetCurDepthVFOV();
     }

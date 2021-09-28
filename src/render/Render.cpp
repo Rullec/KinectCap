@@ -197,8 +197,7 @@ GLFWwindow *cRender::GetWindow()
 
 void cRender::MouseMoveCallback(double xpos, double ypos)
 {
-
-    printf("xpos %.1f, ypos %.1f\n", xpos, ypos);
+    // printf("xpos %.1f, ypos %.1f\n", xpos, ypos);
     // 1. judge the belonging
     int image_id = -1;
     int col_id = -1, row_id = -1;
@@ -224,7 +223,7 @@ void cRender::MouseMoveCallback(double xpos, double ypos)
     // printf("cur pos x %.3f, y %.3f belongs to image %d, total image num %d\n", xpos, ypos, image_id, mCurRenderingResource.size());
     if (image_id != -1)
     {
-        printf("belongs to image %d, row %d col %d, xpos %.1f, ypos %.1f\n", image_id, row_id, col_id, xpos, ypos);
+        // printf("belongs to image %d, row %d col %d, xpos %.1f, ypos %.1f\n", image_id, row_id, col_id, xpos, ypos);
         // 2. get the value in this pixel
         auto cur_resource = mCurRenderingResource[image_id];
         int cur_width = cur_resource->mPresentWidth,
@@ -465,6 +464,7 @@ void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourc
 {
     mCurRenderingResource.clear();
     mCurRenderingResource = resource;
+    // std::cout << "rendering resouce num = " << mCurRenderingResource.size() << std::endl;
     image_st_array.clear();
     image_shape_array.clear();
     rendering_resouce_array.clear();

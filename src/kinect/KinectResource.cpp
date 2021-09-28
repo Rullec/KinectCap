@@ -44,27 +44,30 @@ void cKinectImageResource::ConvertFromKinect(k4a_image_t image, bool enable_down
     switch (cur_format)
     {
     case K4A_IMAGE_FORMAT_DEPTH16:
+    case K4A_IMAGE_FORMAT_IR16:
         ConvertFromDepthImage(image);
         break;
     case K4A_IMAGE_FORMAT_COLOR_BGRA32:
         ConvertFromColorImage(image);
         break;
+
     default:
         SIM_ERROR("unsupported format {}", cur_format);
         break;
     }
 }
-
+#include <iostream>
 void cKinectImageResource::ConvertFromDepthImage(k4a_image_t image)
 {
     auto image_format = k4a_image_get_format(image);
-    SIM_ASSERT(image_format == K4A_IMAGE_FORMAT_DEPTH16);
+    SIM_ASSERT(image_format == K4A_IMAGE_FORMAT_DEPTH16 || image_format == K4A_IMAGE_FORMAT_IR16);
     uint16_t *kinect_buffer = (uint16_t *)(k4a_image_get_buffer(image));
     mChannels = 3; // RGB format
     int present_data_size = mPresentHeight * mPresentWidth * mChannels;
     if (mPresentData.size() != present_data_size)
         mPresentData.resize(present_data_size, 1);
 
+    // std::cout << "convert from depth, depth adjust = " << mValueAdjust << std::endl;
     for (int row_id = 0; row_id < mPresentHeight; row_id++)
     {
         for (int col_id = 0; col_id < mPresentWidth; col_id++)
@@ -96,7 +99,7 @@ void cKinectImageResource::ConvertFromDepthImage(k4a_image_t image)
 void cKinectImageResource::ConvertFromDepthImageRaw(k4a_image_t image)
 {
     auto image_format = k4a_image_get_format(image);
-    SIM_ASSERT(image_format == K4A_IMAGE_FORMAT_DEPTH16);
+    SIM_ASSERT(image_format == K4A_IMAGE_FORMAT_DEPTH16 || image_format == K4A_IMAGE_FORMAT_IR16);
     uint16_t *kinect_buffer = (uint16_t *)(k4a_image_get_buffer(image));
     mChannels = 3; // RGB format
     int raw_data_size = mRawHeight * mRawWidth * mChannels;
@@ -113,7 +116,7 @@ void cKinectImageResource::ConvertFromDepthImageRaw(k4a_image_t image)
             // set up raw data
             {
                 int raw_output_idx = (mRawHeight - row_id - 1) * mRawWidth + col_id;
-                float pixel_value = (float(kinect_buffer[kinect_idx]) + mValueAdjust) / 1e3 + mValueAdjust;
+                float pixel_value = (float(kinect_buffer[kinect_idx]) + mValueAdjust) / 1e3;
                 mRawData[3 * raw_output_idx + 0] = pixel_value;
                 mRawData[3 * raw_output_idx + 1] = pixel_value;
                 mRawData[3 * raw_output_idx + 2] = pixel_value;
@@ -198,7 +201,9 @@ void ExportDepthToPng(float *raw_buf, int height, int width, int buf_channels, s
         {
             int raw_buf_idx = (row * width + col) * buf_channels;
             int stb_buf_idx = ((height - 1 - row) * width + col);
-            uint32_t val = raw_buf[raw_buf_idx] * 255.99f;
+            int val = raw_buf[raw_buf_idx] * 255.99f;
+            if (val < 0)
+                val = 0;
             if (val > 255)
                 val = 0;
             stb_export_buf[stb_buf_idx] = uint8_t(val);

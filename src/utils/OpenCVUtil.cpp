@@ -2,6 +2,16 @@
 #include "utils/LogUtil.h"
 using namespace cv;
 
+uint8_t Clamp(int val)
+{
+    uint8_t new_val = 0;
+
+    if(val < 0 ) new_val = 0;
+
+    else if(val > 255) new_val = 255;
+    else new_val = val;
+    return new_val;
+}
 cv::Mat cOpencvUtil::ConvertFloatArrayToRGBMat(int height, int width, float *array)
 {
     Mat new_mat(height, width, CV_8UC3);
@@ -10,9 +20,13 @@ cv::Mat cOpencvUtil::ConvertFloatArrayToRGBMat(int height, int width, float *arr
         {
             auto &pixel = new_mat.at<Vec3b>(row, col);
             int buffer_idx = ((height - 1 - row) * width + col) * 3;
-            pixel[0] = uint8_t(array[buffer_idx + 2] * 255.99); // B
-            pixel[1] = uint8_t(array[buffer_idx + 1] * 255.99); // G
-            pixel[2] = uint8_t(array[buffer_idx + 0] * 255.99); // G
+            int val_B = array[buffer_idx + 2] * 255.99;
+            int val_G = array[buffer_idx + 1] * 255.99;
+            int val_R = array[buffer_idx + 0] * 255.99;
+            
+            pixel[0] = Clamp(val_B); // B
+            pixel[1] = Clamp(val_G); // G
+            pixel[2] = Clamp(val_R); // R
         }
     // imshow("hello", new_mat);
     // waitKey(0);

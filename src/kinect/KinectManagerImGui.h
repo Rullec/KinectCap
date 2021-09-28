@@ -31,7 +31,9 @@ protected:
     k4a_calibration_t mCalibration;
     k4a_transformation_t mCalibratinTrans;
     cKinectImageResourcePtr mCurDepthImage, mCurColorImage;
+    bool mEnableCompareDistort;
     bool mEnablePoseEstimate;
+    int mPoseEstimateMode;
     bool mEnableShowRaycast;
     bool mEnableDownsample;
     bool mDebugDrawChessboard;
@@ -41,6 +43,8 @@ protected:
     cKinectImageResourcePtr mRaycastDepthResource;
     cKinectImageResourcePtr mDebugChessboardResource;
     cKinectImageResourcePtr mDepthDiffResource;
+    cKinectImageResourcePtr mUndistortDepthRes, mUndistortColorRes;
+    cKinectImageResourcePtr mUndistortDepthDiff, mUndistortColorDiff;
     float mRaycastFov;
     float mDepthAdjustBias;
     tVector3f mEstimatedCamPos, mEstimatedCamFocus, mEstimatedCamUp;
@@ -49,7 +53,8 @@ protected:
     cKinectImageResourcePtr GetColorImageNew();
     std::vector<cKinectImageResourcePtr> GetDepthToColorImageNew();
     void ExportCapture();
-    void PoseEstimate();
+    void PoseEstimateFromColor();
+    void PoseEstimateFromIR();
     void ExportKinectConfiguration(std::string outputname);
     void InitRaycastDepthImage();
     void UpdateRaycastResult(cKinectImageResourcePtr depth_result);

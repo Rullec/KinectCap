@@ -130,6 +130,9 @@ void cKinectManagerImGui::UpdateGui()
         mEstimatedCamFocus.setZero();
         mEstimatedCamUp.setZero();
     }
+    ImGui::Text("cam_pos = %.1f, %.1f, %.1f, ", cam_pos[0], cam_pos[1], cam_pos[2]);
+    ImGui::Text("cam_focus = %.1f, %.1f, %.1f", cam_focus[0], cam_focus[1], cam_focus[2]);
+    ImGui::Text("cam_up = %.2f, %.2f, %.2f", cam_up[0], cam_up[1], cam_up[2]);
     // cTimeUtil::End("pose_est");
 
     if (capture)
@@ -398,9 +401,6 @@ void cKinectManagerImGui::PoseEstimate()
         cPoseEstimator::Estimate(
             rgb_mat, mtx, dist_coef, debug_color_mat, cam_pos, cam_focus, cam_up);
 
-        ImGui::Text("cam_pos = %.1f, %.1f, %.1f, ", cam_pos[0], cam_pos[1], cam_pos[2]);
-        ImGui::Text("cam_focus = %.1f, %.1f, %.1f", cam_focus[0], cam_focus[1], cam_focus[2]);
-        ImGui::Text("cam_up = %.2f, %.2f, %.2f", cam_up[0], cam_up[1], cam_up[2]);
         mEstimatedCamPos = cam_pos.segment(0, 3).cast<float>();
         mEstimatedCamFocus = cam_focus.segment(0, 3).cast<float>();
         mEstimatedCamUp = cam_up.segment(0, 3).cast<float>();

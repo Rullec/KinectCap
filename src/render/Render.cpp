@@ -197,6 +197,8 @@ GLFWwindow *cRender::GetWindow()
 
 void cRender::MouseMoveCallback(double xpos, double ypos)
 {
+
+    printf("xpos %.1f, ypos %.1f\n", xpos, ypos);
     // 1. judge the belonging
     int image_id = -1;
     int col_id = -1, row_id = -1;
@@ -215,14 +217,14 @@ void cRender::MouseMoveCallback(double xpos, double ypos)
             {
                 image_id = i;
                 col_id = xpos - cur_width_st;
-                row_id = self_ypos - cur_height_st;
+                row_id = cur_height - (self_ypos - cur_height_st);
             }
         }
     }
     // printf("cur pos x %.3f, y %.3f belongs to image %d, total image num %d\n", xpos, ypos, image_id, mCurRenderingResource.size());
     if (image_id != -1)
     {
-        // printf("belongs to image %d, row %d col %d\n", image_id, col_id, row_id);
+        printf("belongs to image %d, row %d col %d, xpos %.1f, ypos %.1f\n", image_id, row_id, col_id, xpos, ypos);
         // 2. get the value in this pixel
         auto cur_resource = mCurRenderingResource[image_id];
         int cur_width = cur_resource->mPresentWidth,

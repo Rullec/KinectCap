@@ -6,10 +6,11 @@ void MouseMoveEventCallback(GLFWwindow *window, double xpos, double ypos)
     // std::cout << "[log] mouse move to " << xpos << " " << ypos << std::endl;
     if (
         (xpos >= 0) && (xpos < gWindowWidth) && (ypos >= 0) && (ypos < gWindowHeight))
-
-    {
         render->MouseMoveCallback(xpos, ypos);
-    }
+
+    // {
+
+    // }
     // {
     //     float depth_m = GetPosValue(ypos, xpos) * 1e3;
     //     std::cout << "cur depth = " << depth_m << " mm\n";

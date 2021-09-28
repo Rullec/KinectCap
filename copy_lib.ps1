@@ -1,5 +1,5 @@
-$origind_dir = "E://SimpleClothSimulator"
-$target_dir = "E:\KinectCap\lib\"
+$origind_dir = "D://SimpleClothSimulator"
+$target_dir = "D:\Projects\KinectCap\lib\"
 
 
 

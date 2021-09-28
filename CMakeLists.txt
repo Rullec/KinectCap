@@ -55,7 +55,7 @@ else()
 endif()
 
 
-include_directories("E:/SimpleClothSimulator/src")
+include_directories("D:/SimpleClothSimulator/src")
 add_definitions(-D USE_OPTIX)
 set(CMAKE_MODULE_PATH
 "${PROJECT_SOURCE_DIR}/cmake"

@@ -9,8 +9,11 @@
 #include "kinect/KinectResource.h"
 #include "GLFW/glfw3.h"
 #include "GLFW/glfw3native.h"
-
-const int gui_height = 200;
+#include "utils/TimeUtil.hpp"
+tEigenArr<tVector2i> image_st_array;
+tEigenArr<tVector2i> image_shape_array;
+std::vector<float *> rendering_resouce_array;
+const int gui_height = 0;
 cRender::cRender(int height, int width) : mHeight(height), mWidth(width)
 {
     mNeedToUpdateImGuiWindowPos = true;
@@ -194,9 +197,7 @@ GLFWwindow *cRender::GetWindow()
 
 void cRender::MouseMoveCallback(double xpos, double ypos)
 {
-    return;
     // 1. judge the belonging
-    int cur_width_st = 0;
     int image_id = -1;
     int col_id = -1, row_id = -1;
     for (int i = 0; i < mCurRenderingResource.size(); i++)
@@ -204,19 +205,21 @@ void cRender::MouseMoveCallback(double xpos, double ypos)
         auto cur_resource = mCurRenderingResource[i];
         int cur_width = cur_resource->mPresentWidth,
             cur_height = cur_resource->mPresentHeight;
+        int cur_height_st = image_st_array[i].x(),
+            cur_width_st = image_st_array[i].y();
 
+        double self_ypos = mHeight - ypos;
         if ((xpos >= cur_width_st) && (xpos < cur_width_st + cur_width))
         {
-
-            if (ypos >= (mHeight - cur_height))
+            if ((self_ypos >= cur_height_st) && (self_ypos < cur_height_st + cur_height))
             {
                 image_id = i;
                 col_id = xpos - cur_width_st;
-                row_id = ypos - (mHeight - cur_height);
+                row_id = self_ypos - cur_height_st;
             }
         }
-        cur_width_st += cur_width;
     }
+    // printf("cur pos x %.3f, y %.3f belongs to image %d, total image num %d\n", xpos, ypos, image_id, mCurRenderingResource.size());
     if (image_id != -1)
     {
         // printf("belongs to image %d, row %d col %d\n", image_id, col_id, row_id);
@@ -333,10 +336,6 @@ void cRender::InitTextureAndFBO()
 //     return mTextureData.data();
 // }
 
-tEigenArr<tVector2i> image_st_array;
-tEigenArr<tVector2i> image_shape_array;
-std::vector<float *> rendering_resouce_array;
-#include "utils/TimeUtil.hpp"
 cTimePoint st = cTimeUtil::GetCurrentTime_chrono();
 void cRender::PostUpdate()
 {
@@ -361,7 +360,7 @@ void cRender::PostUpdate()
         // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
         {
 
-            ImVec2 init_window_size = ImVec2(500, 250);
+            ImVec2 init_window_size = ImVec2(500, 300);
             ImGui::SetNextWindowSize(init_window_size, ImGuiCond_Always);
             if (mNeedToUpdateImGuiWindowPos == true)
             {
@@ -478,7 +477,7 @@ void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourc
             tVector2i(gui_height, tex_width_row0));
         image_shape_array.push_back(
             tVector2i(res->mPresentHeight, res->mPresentWidth));
-
+        // printf("[debug] render resource %d height %d width %d\n", i, res->mPresentHeight, res->mPresentWidth);
         rendering_resouce_array.push_back(res->mPresentData.data());
 
         tex_height_row0 = std::max(res->mPresentHeight, tex_height_row0);
@@ -493,11 +492,12 @@ void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourc
             tVector2i(gui_height + tex_height_row0, tex_width_row1));
         image_shape_array.push_back(
             tVector2i(cur_res->mPresentHeight, cur_res->mPresentWidth));
-
+        // printf("[debug] render resource %d height %d width %d\n", i, cur_res->mPresentHeight, cur_res->mPresentWidth);
         rendering_resouce_array.push_back(cur_res->mPresentData.data());
 
         tex_height_row1 = std::max(cur_res->mPresentHeight, tex_height_row1);
         tex_width_row1 += cur_res->mPresentWidth;
+        i++;
     }
 
     int tex_height = tex_height_row0 + tex_height_row1 + gui_height;

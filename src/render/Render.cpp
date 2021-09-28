@@ -461,6 +461,7 @@ void cRender::UpdateTextureFromRenderResource(cKinectImageResourcePtr resource)
 
 void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource)
 {
+    mCurRenderingResource.clear();
     mCurRenderingResource = resource;
     image_st_array.clear();
     image_shape_array.clear();

@@ -22,6 +22,7 @@ public:
     void UpdateGui();
 
     std::vector<cKinectImageResourcePtr> GetRenderingResource();
+    virtual void SetColorAndDepthMode(k4a_depth_mode_t new_depth_mode, k4a_color_resolution_t new_color_mode) override;
 
 protected:
     eDisplayMode mDisplayMode;
@@ -53,6 +54,7 @@ protected:
     void InitRaycastDepthImage();
     void UpdateRaycastResult(cKinectImageResourcePtr depth_result);
     void UpdateDepthDiffResult(cKinectImageResourcePtr diff_depth);
+    double GetCurDepthVFOV();
 };
 
 SIM_DECLARE_PTR(cKinectManagerImGui);

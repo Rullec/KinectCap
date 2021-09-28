@@ -28,6 +28,8 @@ public:
     virtual void SetDepthMode(k4a_depth_mode_t mode);
     virtual void SetColorMode(k4a_color_resolution_t mode);
     virtual void SetColorAndDepthMode(k4a_depth_mode_t new_depth_mode, k4a_color_resolution_t new_color_mode);
+    virtual double GetColorVFOV(k4a_color_resolution_t mode);
+    virtual double GetDepthVFOV(k4a_depth_mode_t mode);
 
 protected:
     virtual void CloseDevice();
@@ -60,7 +62,7 @@ protected:
     // openni::VideoStream m_irStream;
     void UpdateDepthIntrins();
     void UpdateColorIntrins();
-    void UpdateIntrins(k4a_calibration_camera_t calib, tIntrinsics & intri) const;
-    virtual k4a_fps_t GetFPS(k4a_depth_mode_t depth ,k4a_color_resolution_t color);
+    void UpdateIntrins(k4a_calibration_camera_t calib, tIntrinsics &intri) const;
+    virtual k4a_fps_t GetFPS(k4a_depth_mode_t depth, k4a_color_resolution_t color);
 };
 SIM_DECLARE_PTR(cKinectManager);

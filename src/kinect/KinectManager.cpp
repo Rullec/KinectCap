@@ -1,6 +1,7 @@
 #include "KinectManager.h"
 #include <iostream>
 #include <k4a/k4a.h>
+#include "utils/LogUtil.h"
 #include "KinectMode.h"
 #define SIM_ASSERT assert
 
@@ -343,6 +344,7 @@ std::vector<tMatrixXi> cKinectManager::GetColorImage() const
             // image_data[offset + 2];
             // image_data[offset + 3];
         }
+    k4a_capture_release(capture);
     return bgra_images;
     // cv::Mat color_frame =
     //     cv::Mat(height, width, CV_8UC4, image_data, cv::Mat::AUTO_STEP);
@@ -444,6 +446,9 @@ tMatrixXi cKinectManager::GetDepthToColorImage() const
     // geometry
     tMatrixXi depth_image_eigen =
         point_cloud_depth_to_color(transformation, depth_image, color_image);
+    k4a_capture_release(capture);
+    k4a_image_release(depth_image);
+    k4a_image_release(color_image);
     return depth_image_eigen;
 }
 
@@ -542,4 +547,82 @@ void cKinectManager::UpdateDepthIntrins()
 void cKinectManager::UpdateColorIntrins()
 {
     UpdateIntrins(GetColorCalibration(), mColorIntri);
+}
+
+double cKinectManager::GetColorVFOV(k4a_color_resolution_t mode)
+{
+    double vfov = 0; // deg
+    switch (mode)
+    {
+    case K4A_COLOR_RESOLUTION_720P:
+    {
+        vfov = 59;
+        break;
+    }
+    case K4A_COLOR_RESOLUTION_1080P:
+    {
+        vfov = 59;
+        break;
+    }
+    case K4A_COLOR_RESOLUTION_1440P:
+    {
+        vfov = 59;
+        break;
+    }
+    case K4A_COLOR_RESOLUTION_1536P:
+    {
+        vfov = 74.3;
+        break;
+    }
+    case K4A_COLOR_RESOLUTION_2160P:
+    {
+        vfov = 59;
+        break;
+    }
+    case K4A_COLOR_RESOLUTION_3072P:
+    {
+        vfov = 74.3;
+        break;
+    }
+    default:
+    {
+        SIM_ERROR("unsupport vfov for color mode {}", mode);
+        exit(1);
+    }
+    }
+
+    return vfov;
+}
+double cKinectManager::GetDepthVFOV(k4a_depth_mode_t mode)
+{
+    double vfov = 0;
+    switch (mode)
+    {
+    case K4A_DEPTH_MODE_NFOV_2X2BINNED:
+    {
+        vfov = 65;
+        break;
+    }
+    case K4A_DEPTH_MODE_NFOV_UNBINNED:
+    {
+        vfov = 65;
+        break;
+    }
+    case K4A_DEPTH_MODE_WFOV_2X2BINNED:
+    {
+        vfov = 120;
+        break;
+    }
+    case K4A_DEPTH_MODE_WFOV_UNBINNED:
+    {
+        vfov = 120;
+        break;
+    }
+    default:
+    {
+        SIM_ERROR("unsupported depth vfov for mode {}", mode);
+        exit(1);
+    }
+    }
+    return vfov;
 }

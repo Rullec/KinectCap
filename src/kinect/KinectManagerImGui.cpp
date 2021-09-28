@@ -70,6 +70,7 @@ void cKinectManagerImGui::Init()
 
     mCalibratinTrans =
         k4a_transformation_create(&mCalibration);
+    mRaycastFov = GetCurDepthVFOV();
 }
 
 #include "imgui.h"
@@ -113,6 +114,8 @@ void cKinectManagerImGui::UpdateGui()
     }
     ImGui::DragFloat("depth adjust", &mDepthAdjustBias, 1, -50, 50);
     bool capture = ImGui::Button("capture!");
+    ImGui::SameLine();
+    ImGui::Text("recommend depth fov %.1f", GetCurDepthVFOV());
     // cTimeUtil::Begin("pose_est");
     if (mEnablePoseEstimate)
     {
@@ -131,7 +134,11 @@ void cKinectManagerImGui::UpdateGui()
 
     if (capture)
         ExportCapture();
-    mDisplayMode = static_cast<eDisplayMode>(display_mode);
+    if (display_mode != mDisplayMode)
+    {
+        mDisplayMode = static_cast<eDisplayMode>(display_mode);
+        mRaycastFov = GetCurDepthVFOV();
+    }
     // SetDepthMode(static_cast<k4a_depth_mode_t>(depth_mode));
     SetColorAndDepthMode(
         static_cast<k4a_depth_mode_t>(depth_mode),
@@ -344,6 +351,9 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNe
     mCurColorImage->ConvertFromKinect(color_image, mEnableDownsample);
     k4a_image_release(transformed_depth_image);
     k4a_image_release(point_cloud_image);
+    k4a_image_release(depth_image);
+    k4a_image_release(color_image);
+    k4a_capture_release(capture);
     // cTimeUtil::End("post_depth_alignment");
     return {mCurColorImage, mCurDepthImage};
 }
@@ -455,4 +465,27 @@ void cKinectManagerImGui::UpdateDepthDiffResult(cKinectImageResourcePtr diff_res
     for (int i = 0; i < size; i++)
         diff_res->mPresentData[i] = std::fabs(mCurDepthImage->mPresentData[i] -
                                               mRaycastDepthResource->mPresentData[i]);
+}
+
+double cKinectManagerImGui::GetCurDepthVFOV()
+{
+    if (this->mDisplayMode == eDisplayMode::DEPTH_TO_COLOR)
+    {
+        return GetColorVFOV(this->mColorMode);
+    }
+    else
+    {
+
+        return GetDepthVFOV(this->mDepthMode);
+    }
+    return -1;
+}
+
+void cKinectManagerImGui::SetColorAndDepthMode(k4a_depth_mode_t new_depth_mode, k4a_color_resolution_t new_color_mode)
+{
+    if (new_depth_mode != mDepthMode || new_color_mode != mColorMode)
+    {
+        cKinectManager::SetColorAndDepthMode(new_depth_mode, new_color_mode);
+        mRaycastFov = GetCurDepthVFOV();
+    }
 }

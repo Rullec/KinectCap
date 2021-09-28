@@ -194,6 +194,7 @@ GLFWwindow *cRender::GetWindow()
 
 void cRender::MouseMoveCallback(double xpos, double ypos)
 {
+    return;
     // 1. judge the belonging
     int cur_width_st = 0;
     int image_id = -1;
@@ -462,37 +463,49 @@ void cRender::UpdateTextureFromRenderResource(cKinectImageResourcePtr resource)
 void cRender::UpdateTextureFromRenderResourceVec(std::vector<cKinectImageResourcePtr> resource)
 {
     mCurRenderingResource = resource;
+    image_st_array.clear();
+    image_shape_array.clear();
+    rendering_resouce_array.clear();
+
     // 1. calculate the final size
-    int tex_height = 0, tex_width = 0;
-    for (int i = 0; i < resource.size(); i++)
+    int tex_height_row0 = 0, tex_width_row0 = 0;
+    int i = 0;
+    for (i = 0; (i < resource.size() && i < 3); i++)
     {
         auto res = resource[i];
-        tex_height = std::max(res->mPresentHeight + gui_height, tex_height);
-        tex_width += res->mPresentWidth;
+
+        image_st_array.push_back(
+            tVector2i(gui_height, tex_width_row0));
+        image_shape_array.push_back(
+            tVector2i(res->mPresentHeight, res->mPresentWidth));
+
+        rendering_resouce_array.push_back(res->mPresentData.data());
+
+        tex_height_row0 = std::max(res->mPresentHeight, tex_height_row0);
+        tex_width_row0 += res->mPresentWidth;
     }
+    int tex_height_row1 = 0, tex_width_row1 = 0;
+    while (i < resource.size())
+    {
+        auto cur_res = resource[i];
+
+        image_st_array.push_back(
+            tVector2i(gui_height + tex_height_row0, tex_width_row1));
+        image_shape_array.push_back(
+            tVector2i(cur_res->mPresentHeight, cur_res->mPresentWidth));
+
+        rendering_resouce_array.push_back(cur_res->mPresentData.data());
+
+        tex_height_row1 = std::max(cur_res->mPresentHeight, tex_height_row1);
+        tex_width_row1 += cur_res->mPresentWidth;
+    }
+
+    int tex_height = tex_height_row0 + tex_height_row1 + gui_height;
+    int tex_width = std::max(tex_width_row0, tex_width_row1);
+
     if (tex_height != mHeight || tex_width != mWidth)
     {
         printf("[debug] combined height %d width %d, resize\n", tex_height, tex_width);
         Resize(tex_height, tex_width);
-    }
-
-    {
-        image_st_array.clear();
-        image_shape_array.clear();
-        rendering_resouce_array.clear();
-
-        int cur_width_st = 0;
-        for (int i = 0; i < resource.size(); i++)
-        {
-            auto cur = resource[i];
-
-            image_st_array.push_back(
-                tVector2i(0, cur_width_st));
-            // std::cout << "resouce " << i << " st = " << cur_width_st << std::endl;
-            cur_width_st += cur->mPresentWidth;
-            image_shape_array.push_back(
-                tVector2i(cur->mPresentHeight, cur->mPresentWidth));
-            rendering_resouce_array.push_back(cur->mPresentData.data());
-        }
     }
 }

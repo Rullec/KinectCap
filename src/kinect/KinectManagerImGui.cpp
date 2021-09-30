@@ -16,8 +16,8 @@ const std::vector<const char *> gCamPoseEstimationMode = {
     "calib_from_color",
     "calib_from_ir"};
 cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
-    // : cKinectManager("720p_16_9", "nfov_unbinned")
-    : cKinectManager("720p_16_9", "passive_ir")
+    : cKinectManager("720p_16_9", "nfov_unbinned")
+// : cKinectManager("720p_16_9", "passive_ir")
 {
     mDisplayMode = cKinectManagerImGui::BuildDisplayModeFromStr(
         display_mode);
@@ -25,16 +25,30 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
     mCurColorImage = std::make_shared<cKinectImageResource>();
     mDebugChessboardResource = std::make_shared<cKinectImageResource>();
     mDepthDiffResource = std::make_shared<cKinectImageResource>();
+
+    // for undistortion and comparision
+    mUndistortDepthRes = std::make_shared<cKinectImageResource>();
+    mUndistortColorRes = std::make_shared<cKinectImageResource>();
+    mUndistortDepthDiff = std::make_shared<cKinectImageResource>();
+    mUndistortColorDiff = std::make_shared<cKinectImageResource>();
+    mDepthFixed = std::make_shared<cKinectImageResource>();
+    mColorFixed = std::make_shared<cKinectImageResource>();
     mEnableDownsample = true;
-    mEnablePoseEstimate = true;
-    mEnableShowRaycast = true;
+    mEnablePoseEstimate = false;
+    mEnableShowRaycast = false;
     mDebugDrawChessboard = false;
     mLockEstimation = false;
-    mEnableDepthDiff = true;
+    mEnableDepthDiff = false;
     mPoseEstimateMode = 0;
     mRaycastFov = 60;
     mDepthAdjustBias = 0;
     mEnableCompareDistort = false;
+    mEnableDepthFix = false;
+    mEnableWindowed = true;
+    mWindowSt[0] = 90 * 2;
+    mWindowSt[1] = 200 * 2;
+    mWindowSize[0] = 240 * 2;
+    mWindowSize[1] = 360 * 2;
     InitRaycastDepthImage();
 }
 std::string cKinectManagerImGui::BuildStrFromDisplayMode(eDisplayMode mode)
@@ -132,7 +146,15 @@ void cKinectManagerImGui::UpdateGui()
 
     ImGui::SameLine();
     ImGui::Checkbox("show_comp undistorted", &mEnableCompareDistort);
+    ImGui::NewLine();
+    ImGui::Checkbox("enable windowed", &mEnableWindowed);
 
+    if (mEnableWindowed)
+    {
+        ImGui::SameLine();
+        ImGui::Checkbox("enable depth fix", &mEnableDepthFix);
+        ImGui::DragInt2("window start", mWindowSt.data());
+    }
     if (mEnableShowRaycast)
     {
         ImGui::DragFloat("raycast fov", &mRaycastFov, 1e-1, 50, 120);
@@ -171,6 +193,7 @@ void cKinectManagerImGui::UpdateGui()
     ImGui::Text("cam_pos = %.1f, %.1f, %.1f, ", mEstimatedCamPos[0], mEstimatedCamPos[1], mEstimatedCamPos[2]);
     ImGui::Text("cam_focus = %.1f, %.1f, %.1f", mEstimatedCamFocus[0], mEstimatedCamFocus[1], mEstimatedCamFocus[2]);
     ImGui::Text("cam_up = %.2f, %.2f, %.2f", mEstimatedCamUp[0], mEstimatedCamUp[1], mEstimatedCamUp[2]);
+    ShowCamResolution();
     // cTimeUtil::End("pose_est");
 
     if (capture)
@@ -223,6 +246,16 @@ void cKinectManagerImGui::ExportCapture()
                  conf_name);
         gOutputImageIdx += 1;
     }
+}
+
+void cKinectManagerImGui::ShowCamResolution()
+{
+    cKinectImageResourcePtr res = nullptr;
+    if (mCurColorImage->mRawHeight != 0)
+        res = mCurColorImage;
+    else
+        res = mCurDepthImage;
+    ImGui::Text("Cam Reso %d %d", res->mRawHeight, res->mRawWidth);
 }
 void cKinectManagerImGui::ExportKinectConfiguration(std::string output_name)
 {
@@ -302,6 +335,7 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
     case eDisplayMode::DEPTH_TO_COLOR:
     {
         res = GetDepthToColorImageNew();
+
         break;
     }
     default:
@@ -325,29 +359,93 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
             }
         }
     }
+    if (mEnableWindowed)
+    {
+        for (auto &x : res)
+        {
+            x->DimmedByWindow(
+                this->mWindowSt,
+                mWindowSize);
+        }
 
+        if (res.size() == 2 && mDisplayMode == eDisplayMode::DEPTH_TO_COLOR && mEnableDepthFix)
+        {
+            // mCurDepthImage->ConvertToOpencvPresented
+            // get the color and depth image, and fix
+            std::cout << "ready to fix\n";
+            // 1. get the color image
+
+            // 2. get the depth image
+            // 3. do the fix
+            // 4. restore back the depth buffer
+        }
+    }
     if (mDebugDrawChessboard == true && mDebugChessboardResource->mPresentHeight != 0)
     {
         res.push_back(mDebugChessboardResource);
     }
 
-
-    if(mEnableCompareDistort == true)
+    if (mEnableCompareDistort == true)
     {
         // if color is availiable, undistort and compare
+        if (mCurColorImage->mRawHeight != 0)
+        {
+            cv::Mat raw_mat = cOpencvUtil::ConvertFloatArrayToRGBMat(
+                mCurColorImage->mRawHeight,
+                mCurColorImage->mRawWidth,
+                mCurColorImage->mRawData.data());
+            // cv::imshow("raw color", raw_mat);
+            // cv::waitKey(0);
+
+            auto opencv_cammat = cOpencvUtil::ConvertEigenMatToOpencv(mColorIntri.mCamMtx);
+            // std::cout << "opencv cammat = " << opencv_cammat << std::endl;
+            auto opencv_camdist = cOpencvUtil::ConvertEigenVecToOpencv(mColorIntri.mDistCoef);
+            // std::cout << "opencv camdist = " << opencv_camdist << std::endl;
+            cv::Mat undistort_mat = cOpencvUtil::Undistort(raw_mat, opencv_cammat, opencv_camdist);
+            // cv::imshow("undistort color", undistort_mat);
+            // cv::waitKey(0);
+
+            // std::cout << cOpencvUtil::type2str(undistort_mat.type()) << std::endl;
+            cv::Mat diff = raw_mat - undistort_mat;
+            mUndistortColorRes->ConvertFromOpencv(undistort_mat, mEnableDownsample);
+            mUndistortColorDiff->ConvertFromOpencv(diff, mEnableDownsample);
+
+            res.push_back(mUndistortColorRes);
+            res.push_back(mUndistortColorDiff);
+        }
 
         // if depth is availiable, undistort and compare
+        if (mCurDepthImage->mRawHeight != 0)
+        {
+            cv::Mat raw_mat = cOpencvUtil::ConvertFloatArrayToRGBMat(
+                mCurDepthImage->mRawHeight,
+                mCurDepthImage->mRawWidth,
+                mCurDepthImage->mRawData.data());
+            // cv::imshow("raw color", raw_mat);
+            // cv::waitKey(0);
+
+            auto opencv_cammat = cOpencvUtil::ConvertEigenMatToOpencv(mDepthIntri.mCamMtx);
+            // std::cout << "opencv cammat = " << opencv_cammat << std::endl;
+            auto opencv_camdist = cOpencvUtil::ConvertEigenVecToOpencv(mDepthIntri.mDistCoef);
+            // std::cout << "opencv camdist = " << opencv_camdist << std::endl;
+            cv::Mat undistort_mat = cOpencvUtil::Undistort(raw_mat, opencv_cammat, opencv_camdist);
+            // cv::imshow("undistort color", undistort_mat);
+            // cv::waitKey(0);
+
+            // std::cout << cOpencvUtil::type2str(undistort_mat.type()) << std::endl;
+            cv::Mat diff = raw_mat - undistort_mat;
+            mUndistortDepthRes->ConvertFromOpencv(undistort_mat, mEnableDownsample);
+            mUndistortDepthDiff->ConvertFromOpencv(diff, mEnableDownsample);
+
+            res.push_back(mUndistortDepthRes);
+            res.push_back(mUndistortDepthDiff);
+        }
     }
     return res;
 }
 #include "utils/TimeUtil.hpp"
 std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetDepthToColorImageNew()
 {
-    // cTimeUtil::Begin("pre_depth_alignment");
-    // cTimeUtil::Begin("pre_depth_alignment1");
-
-    // cTimeUtil::End("pre_depth_alignment1");
-    // cTimeUtil::Begin("pre_depth_alignment2");
     // Get a capture
     k4a_capture_t capture = GetCapture();
 

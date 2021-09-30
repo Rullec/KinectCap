@@ -6,10 +6,13 @@ uint8_t Clamp(int val)
 {
     uint8_t new_val = 0;
 
-    if(val < 0 ) new_val = 0;
+    if (val < 0)
+        new_val = 0;
 
-    else if(val > 255) new_val = 255;
-    else new_val = val;
+    else if (val > 255)
+        new_val = 255;
+    else
+        new_val = val;
     return new_val;
 }
 cv::Mat cOpencvUtil::ConvertFloatArrayToRGBMat(int height, int width, float *array)
@@ -23,7 +26,7 @@ cv::Mat cOpencvUtil::ConvertFloatArrayToRGBMat(int height, int width, float *arr
             int val_B = array[buffer_idx + 2] * 255.99;
             int val_G = array[buffer_idx + 1] * 255.99;
             int val_R = array[buffer_idx + 0] * 255.99;
-            
+
             pixel[0] = Clamp(val_B); // B
             pixel[1] = Clamp(val_G); // G
             pixel[2] = Clamp(val_R); // R
@@ -64,4 +67,84 @@ void cOpencvUtil::ConvertRGBMatToFloatArray(const cv::Mat &mat, int &height, int
             array[buffer_idx + 1] = float(pixel[1]) / 255; // G
             array[buffer_idx + 2] = float(pixel[0]) / 255; // B
         }
+}
+
+cv::Mat cOpencvUtil::Undistort(const cv::Mat &Mat, const cv::Mat &cameraMatrix, const cv::Mat &distCoeffs)
+{
+    cv::Mat undistorted;
+    cv::undistort(Mat, undistorted, cameraMatrix, distCoeffs);
+
+    return undistorted;
+}
+#include <opencv2/core/eigen.hpp>
+cv::Mat cOpencvUtil::ConvertEigenMatToOpencv(const tMatrixXd &mat)
+{
+    cv::Mat new_mat;
+    cv::eigen2cv(mat, new_mat);
+    return new_mat;
+}
+cv::Mat cOpencvUtil::ConvertEigenVecToOpencv(const tVectorXd &mat)
+{
+    cv::Mat new_mat;
+    cv::eigen2cv(mat, new_mat);
+    return new_mat;
+}
+
+tVectorXd cOpencvUtil::ConvertOpencvToEigenVec(const cv::Mat &mat)
+{
+    tVectorXd new_mat;
+    cv::cv2eigen(mat, new_mat);
+    return new_mat;
+}
+tMatrixXd cOpencvUtil::ConvertOpencvToEigenMat(const cv::Mat &mat)
+{
+    tMatrixXd new_mat;
+    cv::cv2eigen(mat, new_mat);
+    return new_mat;
+}
+
+std::string cOpencvUtil::type2str(int type)
+{
+    std::string r;
+
+    uchar depth = type & CV_MAT_DEPTH_MASK;
+    uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+    switch (depth)
+    {
+    case CV_8U:
+        r = "8U";
+        break;
+    case CV_8S:
+        r = "8S";
+        break;
+    case CV_16U:
+        r = "16U";
+        break;
+    case CV_16S:
+        r = "16S";
+        break;
+    case CV_32S:
+        r = "32S";
+        break;
+    case CV_32F:
+        r = "32F";
+        break;
+    case CV_64F:
+        r = "64F";
+        break;
+    default:
+        r = "User";
+        break;
+    }
+
+    r += "C";
+    r += (chans + '0');
+
+    return r;
+}
+
+tVector2i cOpencvUtil::GetOpencvMatSize(const cv::Mat &mat)
+{
+    return tVector2i(mat.rows, mat.cols);
 }

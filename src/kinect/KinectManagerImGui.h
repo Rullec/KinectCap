@@ -39,12 +39,16 @@ protected:
     bool mDebugDrawChessboard;
     bool mEnableDepthDiff;
     bool mLockEstimation;
+    bool mEnableDepthFix;
+    bool mEnableWindowed;
+    tVector2i mWindowSt, mWindowSize;
     cDepthImageCasterPtr mRaycaster;
     cKinectImageResourcePtr mRaycastDepthResource;
     cKinectImageResourcePtr mDebugChessboardResource;
     cKinectImageResourcePtr mDepthDiffResource;
     cKinectImageResourcePtr mUndistortDepthRes, mUndistortColorRes;
     cKinectImageResourcePtr mUndistortDepthDiff, mUndistortColorDiff;
+    cKinectImageResourcePtr mDepthFixed, mColorFixed;
     float mRaycastFov;
     float mDepthAdjustBias;
     tVector3f mEstimatedCamPos, mEstimatedCamFocus, mEstimatedCamUp;
@@ -53,6 +57,7 @@ protected:
     cKinectImageResourcePtr GetColorImageNew();
     std::vector<cKinectImageResourcePtr> GetDepthToColorImageNew();
     void ExportCapture();
+    void ShowCamResolution();
     void PoseEstimateFromColor();
     void PoseEstimateFromIR();
     void ExportKinectConfiguration(std::string outputname);

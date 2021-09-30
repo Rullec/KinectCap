@@ -25,33 +25,22 @@ void Downsample(cv::Mat &mat, uint8_t type)
     cv::pyrDown(mat, buf_mat, new_size);
     mat = buf_mat;
 }
+#include "utils/LogUtil.h"
+#include "utils/FileUtil.h"
+extern double GetMax(const cv::Mat &mat);
 void Test()
 {
-    std::string color_path = "E:\\KinectCap\\output\\color0.png";
-    std::string depth_path = "E:\\KinectCap\\output\\depth0.png";
-    cv::Mat color = cv::imread(color_path, cv::IMREAD_COLOR);
-    cv::Mat depth = cv::imread(depth_path, cv::IMREAD_GRAYSCALE);
-
-    Downsample(color, CV_8UC3);
-    Downsample(color, CV_8UC3);
-    
-    Downsample(depth, CV_8UC3);
-    Downsample(depth, CV_8UC3);
-    
-    cColorDepthFixer::FixColorDepth(color, depth);
-    exit(1);
-    cv::imshow("color", color);
-    cv::waitKey(0);
-    cv::imshow("depth", depth);
-    cv::waitKey(0);
+    std::string color_path = "E:\\KinectCap\\1small_color.png";
+    std::string depth_path = "E:\\KinectCap\\1small_depth.png";
+    cColorDepthFixer::FixColorDepth(color_path, depth_path);
 }
 
 int main()
 {
     // Test();
     // exit(1);
-    // cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("depth_to_color");
-    cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("only_depth");
+    cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("depth_to_color");
+    // cKinectManagerImGuiPtr manager = std::make_shared<cKinectManagerImGui>("only_depth");
     manager->Init();
     tMatrixXi depth_image = manager->GetDepthImage();
     printf("get depth image size %d %d\n", depth_image.rows(), depth_image.cols());

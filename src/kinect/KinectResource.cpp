@@ -267,3 +267,114 @@ void ExportRGBColorToPng(float *buf, int height, int width, int buf_channels, st
 
     stbi_write_png(output_name.c_str(), width, height, 3, stb_export_buf.data(), width * sizeof(uint8_t) * 3);
 }
+#include "utils/OpenCVUtil.h"
+void cKinectImageResource::ConvertFromOpencv(const cv::Mat &image, bool enable_downsampling /*= true*/)
+{
+    mEnableDownsampling = enable_downsampling;
+    // raw data fill
+    mRawHeight = image.rows;
+    mRawWidth = image.cols;
+    mChannels = 3;
+    SIM_ASSERT(image.type() == CV_8UC3);
+    mValueAdjust = 0;
+    mRawData.resize(mRawHeight * mRawWidth * mChannels);
+    for (int row_id = 0; row_id < mRawHeight; row_id++)
+        for (int col_id = 0; col_id < mRawWidth; col_id++)
+        {
+            auto pt = image.at<cv::Vec3b>(row_id, col_id);
+            int output_idx = (mRawHeight - 1 - row_id) * mRawWidth + col_id;
+            mRawData[output_idx * 3 + 0] = float(pt[2]) / 255.0;
+            mRawData[output_idx * 3 + 1] = float(pt[1]) / 255.0;
+            mRawData[output_idx * 3 + 2] = float(pt[0]) / 255.0;
+        }
+
+    // present data fill
+    if (enable_downsampling == true)
+    {
+        mPresentWidth = mRawWidth / 2;
+        mPresentHeight = mRawHeight / 2;
+        mPresentData.resize(mPresentHeight * mPresentWidth * mChannels);
+        for (int row_id = 0; row_id < mPresentHeight; row_id++)
+            for (int col_id = 0; col_id < mPresentWidth; col_id++)
+            {
+                int output_idx = (mPresentHeight - 1 - row_id) * mPresentWidth + col_id;
+                int buf_row_id = 2 * row_id;
+                int buf_col_id = 2 * col_id;
+                auto pt = image.at<cv::Vec3b>(buf_row_id, buf_col_id);
+
+                mPresentData[output_idx * 3 + 0] = float(pt[2]) / 255.0;
+                mPresentData[output_idx * 3 + 1] = float(pt[1]) / 255.0;
+                mPresentData[output_idx * 3 + 2] = float(pt[0]) / 255.0;
+            }
+    }
+    else
+    {
+        mPresentWidth = mRawWidth;
+        mPresentHeight = mRawHeight;
+        mPresentData = mRawData;
+    }
+}
+
+void cKinectImageResource::DimmedByWindow(const tVector2i &st_pos_, const tVector2i &window_size_)
+{
+    // only dim the present data
+    tVector2i st_pos = st_pos_;
+    tVector2i window_size = window_size_;
+    if (mEnableDownsampling)
+    {
+        st_pos /= 2;
+        window_size /= 2;
+    }
+    double dim_scale = 0.5;
+    // if enable down sampling, window_size /= 2, st_pos /= 2
+    int height_st = st_pos[0], height_ed = height_st + window_size[0];
+    int width_st = st_pos[1], width_ed = width_st + window_size[1];
+    for (int row_id = 0; row_id < mPresentHeight; row_id++)
+    {
+        for (int col_id = 0; col_id < mPresentWidth; col_id++)
+        {
+            if (
+                (row_id < height_st) ||
+                (row_id > height_ed) ||
+                (col_id < width_st) ||
+                (col_id > width_ed))
+            {
+                int output_idx = (mPresentHeight - 1 - row_id) * mPresentWidth + col_id;
+                mPresentData[3 * output_idx + 0] *= dim_scale;
+                mPresentData[3 * output_idx + 1] *= dim_scale;
+                mPresentData[3 * output_idx + 2] *= dim_scale;
+            }
+        }
+    }
+}
+
+cv::Mat cKinectImageResource::ConvertToOpencvPresented(const tVector2i &window_st_,
+                                                       const tVector2i &window_size_)
+{
+    tVector2i window_st = window_st_;
+    tVector2i window_size = window_size_;
+    int window_height = window_size[0];
+    int window_width = window_size[1];
+    cv::Mat cv_image(window_height, window_width, CV_8UC3);
+    // for (int row_id = 0; row_id < mPresentHeight; row_id++)
+    //     for (int col_id = 0; col_id < mPresentWidth; col_id++)
+    //     {
+    //         int buf_row_id = row_id;
+    //         int buf_col_id = col_id;
+
+    //         auto vec = cv_image.at<cv::Vec3b>(buf_row_id, buf_col_id);
+    //         int output_idx = (mPresentHeight - 1 - row_id) * mPresentWidth + col_id;
+
+    //         vec[2] = uint8_t(mPresentData[output_idx * 3 + 0] * 255);
+    //         vec[1] = uint8_t(mPresentData[output_idx * 3 + 1] * 255);
+    //         vec[0] = uint8_t(mPresentData[output_idx * 3 + 2] * 255);
+    //     }
+    for (int row_id = 0; row_id < window_height; row_id++)
+    {
+        for (int col_id = 0; col_id < window_width; col_id++)
+        {
+            // 1. get the target present image path
+        }
+    }
+    return cv_image;
+}

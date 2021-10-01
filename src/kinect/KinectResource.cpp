@@ -87,6 +87,8 @@ void cKinectImageResource::ConvertFromDepthImage(k4a_image_t image)
             {
                 int present_output_idx = (mPresentHeight - row_id - 1) * mPresentWidth + col_id;
                 float pixel_value = (float(kinect_buffer[kinect_idx]) + mValueAdjust) / 1e3;
+                if (pixel_value < 0)
+                    pixel_value = 0;
                 mPresentData[3 * present_output_idx + 0] = pixel_value;
                 mPresentData[3 * present_output_idx + 1] = pixel_value;
                 mPresentData[3 * present_output_idx + 2] = pixel_value;
@@ -117,6 +119,8 @@ void cKinectImageResource::ConvertFromDepthImageRaw(k4a_image_t image)
             {
                 int raw_output_idx = (mRawHeight - row_id - 1) * mRawWidth + col_id;
                 float pixel_value = (float(kinect_buffer[kinect_idx]) + mValueAdjust) / 1e3;
+                if (pixel_value < 0)
+                    pixel_value = 0;
                 mRawData[3 * raw_output_idx + 0] = pixel_value;
                 mRawData[3 * raw_output_idx + 1] = pixel_value;
                 mRawData[3 * raw_output_idx + 2] = pixel_value;
@@ -353,6 +357,8 @@ cv::Mat cKinectImageResource::ConvertToOpencvPresented(const tVector2i &window_s
 {
     tVector2i window_st = window_st_;
     tVector2i window_size = window_size_;
+    if (mEnableDownsampling)
+        window_st /= 2, window_size /= 2;
     int window_height = window_size[0];
     int window_width = window_size[1];
     cv::Mat cv_image(window_height, window_width, CV_8UC3);
@@ -373,8 +379,41 @@ cv::Mat cKinectImageResource::ConvertToOpencvPresented(const tVector2i &window_s
     {
         for (int col_id = 0; col_id < window_width; col_id++)
         {
-            // 1. get the target present image path
+            // 1. get the target present image idx
+            int present_row_id = row_id + window_st[0];
+            int present_col_id = col_id + window_st[1];
+            int present_buf_id = (mPresentHeight - present_row_id - 1) * mPresentWidth + present_col_id;
+            cv::Vec3b &vec = cv_image.at<cv::Vec3b>(row_id, col_id);
+            vec[2] = uint8_t(mPresentData[present_buf_id * 3 + 0] * 255);
+            vec[1] = uint8_t(mPresentData[present_buf_id * 3 + 1] * 255);
+            vec[0] = uint8_t(mPresentData[present_buf_id * 3 + 2] * 255);
         }
     }
     return cv_image;
+}
+
+void cKinectImageResource::ConvertFromAnotherResource(cKinectImageResourcePtr ptr)
+{
+    mPresentHeight = ptr->mPresentHeight, mPresentWidth = ptr->mPresentWidth;
+    mRawHeight = ptr->mRawHeight, mRawWidth = ptr->mRawWidth;
+    mChannels = ptr->mChannels;
+    mEnableDownsampling = ptr->mEnableDownsampling;
+    mValueAdjust = ptr->mValueAdjust;
+    mPresentData = ptr->mPresentData;
+    mRawData = ptr->mRawData;
+}
+void cKinectImageResource::ApplyValueMask(float mask_value)
+{
+    OMP_PARALLEL_FOR
+    for (int i = 0; i < mPresentData.size(); i++)
+    {
+        if (mPresentData[i] > mask_value)
+            mPresentData[i] = 0;
+    }
+    OMP_PARALLEL_FOR
+    for (int i = 0; i < mRawData.size(); i++)
+    {
+        if (mRawData[i] > mask_value)
+            mRawData[i] = 0;
+    }
 }

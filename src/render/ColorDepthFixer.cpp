@@ -7,14 +7,14 @@
 using namespace std;
 using namespace cv;
 
-double GetMax(const cv::Mat &mat)
+float GetMax(const cv::Mat &mat)
 {
     double min_val, max_val;
     Point a, b;
     cv::minMaxLoc(mat, &min_val, &max_val, &a, &b);
     return max_val;
 }
-cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &img_depth_input_, double alpha /*= 1*/)
+cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &img_depth_input_, float alpha /*= 1*/)
 {
     // color.convertTo(color, CV_32FC3);
     // depth.convertTo(depth, CV_32FC1);
@@ -45,7 +45,7 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
 
     // imshow("img_isnoise", img_isnoise);
 
-    double max_img_abs_depth = GetMax(img_depth_input);
+    float max_img_abs_depth = GetMax(img_depth_input);
     // std::cout << "imgIsNoise " << img_isnoise << std::endl;
     // std::cout << "max img abs = depth " << max_img_abs_depth << std::endl;
 
@@ -90,9 +90,9 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     // exit(1);
     tVectorXi cols = -tVectorXi::Ones(len_zeros),
               rows = -tVectorXi::Ones(len_zeros);
-    tVectorXd vals = -tVectorXd::Ones(len_zeros),
-              gvals = -tVectorXd::Ones(len_window);
-    tVectorXd tmp_vec;
+    tVectorXf vals = -tVectorXf::Ones(len_zeros),
+              gvals = -tVectorXf::Ones(len_window);
+    tVectorXf tmp_vec;
 
     for (int j = 0; j < W; j++)
     {
@@ -129,19 +129,19 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
             // std::cout << "rows = " << rows.transpose() << std::endl;
             // std::cout << "cols = " << cols.transpose() << std::endl;
             // std::cout << "gvals = " << gvals.transpose() << std::endl;
-            double cur_val = gray_img.at<float>(i, j);
+            float cur_val = gray_img.at<float>(i, j);
             gvals[n_win] = cur_val;
 
             // again
-            tmp_vec = gvals.segment(0, n_win + 1) - gvals.segment(0, n_win + 1).mean() * tVectorXd::Ones(n_win + 1);
+            tmp_vec = gvals.segment(0, n_win + 1) - gvals.segment(0, n_win + 1).mean() * tVectorXf::Ones(n_win + 1);
             tmp_vec = tmp_vec.array().pow(2);
-            double c_var = tmp_vec.mean();
-            double c_sig = c_var * 0.6;
+            float c_var = tmp_vec.mean();
+            float c_sig = c_var * 0.6;
 
             // again
-            tmp_vec = gvals.segment(0, n_win) - cur_val * tVectorXd::Ones(n_win);
+            tmp_vec = gvals.segment(0, n_win) - cur_val * tVectorXf::Ones(n_win);
             tmp_vec = tmp_vec.array().pow(2);
-            double mgv = tmp_vec.minCoeff();
+            float mgv = tmp_vec.minCoeff();
             if (c_sig < -mgv / std::log(1e-2))
                 c_sig = -mgv / std::log(1e-2);
             if (c_sig < 2e-6)
@@ -156,7 +156,7 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
             // printf("mgv %f\n", mgv);
             // exit(1);
 
-            tmp_vec = (gvals.segment(0, n_win) - cur_val * tVectorXd::Ones(n_win)).array().pow(2);
+            tmp_vec = (gvals.segment(0, n_win) - cur_val * tVectorXf::Ones(n_win)).array().pow(2);
             tmp_vec = -1 * tmp_vec / c_sig;
             gvals.segment(0, n_win) = tmp_vec.array().exp();
             gvals.segment(0, n_win) /= gvals.segment(0, n_win).sum();
@@ -193,19 +193,19 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     // std::cout << "vals size " << vals.size() << std::endl;
     // std::cout << "cols size " << cols.size() << std::endl;
     // std::cout << "rows size " << rows.size() << std::endl;
-    Eigen::SparseMatrix<double> A(num_pixels, num_pixels);
+    Eigen::SparseMatrix<float> A(num_pixels, num_pixels);
     // printf("begin to fill A\n");
     A.reserve(vals.size());
     {
-        tEigenArr<Eigen::Triplet<double>> tris(0);
+        tEigenArr<Eigen::Triplet<float>> tris(0);
         OMP_PARALLEL
         {
-            tEigenArr<Eigen::Triplet<double>> tris_private;
+            tEigenArr<Eigen::Triplet<float>> tris_private;
 #pragma omp for nowait
             for (int i = 0; i < vals.size(); i++)
             {
                 // printf("\r %d/%d", i, vals.size());
-                tris_private.push_back(Eigen::Triplet<double>(rows[i], cols[i], vals[i]));
+                tris_private.push_back(Eigen::Triplet<float>(rows[i], cols[i], vals[i]));
                 // printf("G row %d col %d value %f\n", rows[i],
                 //        cols[i], vals[i]);
             }
@@ -223,27 +223,27 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     // std::cout << "rows = " << rows.transpose() << std::endl;
     // exit(1);
     const cv::Mat &tmp_mat = known_val_mask * alpha;
-    const tMatrixXd &eigen_mat = cOpencvUtil::ConvertOpencvToEigenMat(tmp_mat);
+    const tMatrixXf &eigen_mat = cOpencvUtil::ConvertOpencvToEigenMatFloat(tmp_mat);
     vals.resize(num_pixels);
-    memcpy(vals.data(), eigen_mat.data(), sizeof(double) * vals.size());
+    memcpy(vals.data(), eigen_mat.data(), sizeof(float) * vals.size());
     // for (int i = 0; i < vals.size(); i++)
     // {
     //     printf("idx %d row %d col %d val %f\n", i, rows[i], cols[i], vals[i]);
     // }
     // exit(1);
     // printf("begin to fill G\n");
-    Eigen::SparseMatrix<double> G(num_pixels, num_pixels);
+    Eigen::SparseMatrix<float> G(num_pixels, num_pixels);
     G.reserve(vals.size());
     {
-        tEigenArr<Eigen::Triplet<double>> tris(0);
+        tEigenArr<Eigen::Triplet<float>> tris(0);
         OMP_PARALLEL
         {
-            tEigenArr<Eigen::Triplet<double>> tris_private;
+            tEigenArr<Eigen::Triplet<float>> tris_private;
 #pragma omp for nowait
             for (int i = 0; i < vals.size(); i++)
             {
                 // printf("\r %d/%d", i, vals.size());
-                tris_private.push_back(Eigen::Triplet<double>(rows[i], cols[i], vals[i]));
+                tris_private.push_back(Eigen::Triplet<float>(rows[i], cols[i], vals[i]));
                 // printf("G row %d col %d value %f\n", rows[i],
                 //        cols[i], vals[i]);
             }
@@ -254,13 +254,13 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     }
     // exit(1);
     // for (int k = 0; k < A.outerSize(); ++k)
-    //     for (Eigen::SparseMatrix<double>::InnerIterator it(A, k); it; ++it)
+    //     for (Eigen::SparseMatrix<float>::InnerIterator it(A, k); it; ++it)
     //     {
     //         printf("A row %d col %d value %f\n", it.row(),
     //                it.col(), it.value());
     //     }
     // for (int k = 0; k < G.outerSize(); ++k)
-    //     for (Eigen::SparseMatrix<double>::InnerIterator it(G, k); it; ++it)
+    //     for (Eigen::SparseMatrix<float>::InnerIterator it(G, k); it; ++it)
     //     {
     //         printf("G row %d col %d value %f\n", it.row(),
     //                it.col(), it.value());
@@ -269,16 +269,16 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     // std::cout << "A = " << A << std::endl;
     A = A + G;
 
-    tMatrixXd &tmp_mat_img_depth = cOpencvUtil::ConvertOpencvToEigenMat(img_depth);
+    tMatrixXf &tmp_mat_img_depth = cOpencvUtil::ConvertOpencvToEigenMatFloat(img_depth);
 
-    Eigen::Map<Eigen::VectorXd> img_depth_vec(tmp_mat_img_depth.data(), int(tmp_mat_img_depth.cols() * tmp_mat_img_depth.rows()));
-    tVectorXd b = img_depth_vec.cwiseProduct(
+    Eigen::Map<Eigen::VectorXf> img_depth_vec(tmp_mat_img_depth.data(), int(tmp_mat_img_depth.cols() * tmp_mat_img_depth.rows()));
+    tVectorXf b = img_depth_vec.cwiseProduct(
         vals);
     // std::cout << "b = " << b.transpose() << std::endl;
     // exit(1);
     // begin to print A and b
     // for (int k = 0; k < A.outerSize(); ++k)
-    //     for (Eigen::SparseMatrix<double>::InnerIterator it(A, k); it; ++it)
+    //     for (Eigen::SparseMatrix<float>::InnerIterator it(A, k); it; ++it)
     //     {
     //         // it.value();
     //         printf("row %d col %d value %f\n", it.row(),
@@ -290,28 +290,28 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     // exit(1);
     // std::cout << "begin to solve\n";
     // cTimeUtil::Begin("solve");
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    // Eigen::LDLT<Eigen::SparseMatrix<double>> solver;
-    // Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+    Eigen::SparseLU<Eigen::SparseMatrix<float>> solver;
+    // Eigen::LDLT<Eigen::SparseMatrix<float>> solver;
+    // Eigen::BiCGSTAB<Eigen::SparseMatrix<float>> solver;
     solver.compute(A);
-    tVectorXd solved = solver.solve(b);
+    tVectorXf solved = solver.solve(b);
     // cTimeUtil::End("solve");
     // std::cout << "solve done\n";
     // std::cout << "solved = " << solved.transpose() << std::endl;
     // exit(1);
-    tMatrixXd new_val(H, W);
-    memcpy(new_val.data(), solved.data(), new_val.size() * sizeof(double));
+    tMatrixXf new_val(H, W);
+    memcpy(new_val.data(), solved.data(), new_val.size() * sizeof(float));
     new_val.transposeInPlace();
     // std::cout << "new vals = " << new_val.transpose() << std::endl;
     // exit(1);
     // done
 
-    tMatrixXd denoised_depth_image = new_val * max_img_abs_depth;
-    cv::Mat output = cOpencvUtil::ConvertEigenMatToOpencv(denoised_depth_image.transpose());
+    tMatrixXf denoised_depth_image = new_val * max_img_abs_depth;
+    cv::Mat output = cOpencvUtil::ConvertEigenMatFloatToOpencv(denoised_depth_image.transpose());
     // std::cout
     //     << "output convert = " << output << std::endl;
     known_val_mask = 1 - 1 * known_val_mask;
-    known_val_mask.convertTo(known_val_mask, CV_64FC1);
+    known_val_mask.convertTo(known_val_mask, CV_32FC1);
     // std::cout << "known_val_mask type = " << cOpencvUtil::type2str(known_val_mask.type()) << std::endl;
     // std::cout << "output type = " << cOpencvUtil::type2str(output.type()) << std::endl;
     // std::cout << "output size = " << cOpencvUtil::GetOpencvMatSize(output).transpose() << std::endl;
@@ -334,7 +334,7 @@ cv::Mat cColorDepthFixer::FixColorDepth(const cv::Mat &img_rgb_, const cv::Mat &
     // return output;
 }
 
-void cColorDepthFixer::FixColorDepth(std::string color_path, std::string depth_path, double alpha /* = 1*/)
+void cColorDepthFixer::FixColorDepth(std::string color_path, std::string depth_path, float alpha /* = 1*/)
 {
     SIM_ASSERT(cFileUtil::ExistsFile(color_path));
     SIM_ASSERT(cFileUtil::ExistsFile(depth_path));

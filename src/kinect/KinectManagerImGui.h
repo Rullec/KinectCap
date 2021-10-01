@@ -41,6 +41,8 @@ protected:
     bool mLockEstimation;
     bool mEnableDepthFix;
     bool mEnableWindowed;
+    bool mEnableDepthRemoval;
+    int mDepthRemovalValue_mm; // depth removal value (mm)
     tVector2i mWindowSt, mWindowSize;
     cDepthImageCasterPtr mRaycaster;
     cKinectImageResourcePtr mRaycastDepthResource;
@@ -48,7 +50,7 @@ protected:
     cKinectImageResourcePtr mDepthDiffResource;
     cKinectImageResourcePtr mUndistortDepthRes, mUndistortColorRes;
     cKinectImageResourcePtr mUndistortDepthDiff, mUndistortColorDiff;
-    cKinectImageResourcePtr mDepthFixed, mColorFixed;
+    cKinectImageResourcePtr mDepthFixed, mDepthFixedRemoval;
     float mRaycastFov;
     float mDepthAdjustBias;
     tVector3f mEstimatedCamPos, mEstimatedCamFocus, mEstimatedCamUp;
@@ -61,6 +63,7 @@ protected:
     void PoseEstimateFromColor();
     void PoseEstimateFromIR();
     void ExportKinectConfiguration(std::string outputname);
+    void ExportWindowConfiguration(std::string outputname);
     void InitRaycastDepthImage();
     void UpdateRaycastResult(cKinectImageResourcePtr depth_result);
     void UpdateDepthDiffResult(cKinectImageResourcePtr diff_depth);

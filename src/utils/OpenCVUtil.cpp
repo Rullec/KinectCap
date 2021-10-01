@@ -89,10 +89,28 @@ cv::Mat cOpencvUtil::ConvertEigenVecToOpencv(const tVectorXd &mat)
     cv::eigen2cv(mat, new_mat);
     return new_mat;
 }
+cv::Mat cOpencvUtil::ConvertEigenMatFloatToOpencv(const tMatrixXf &mat)
+{
+    cv::Mat new_mat;
+    cv::eigen2cv(mat, new_mat);
+    return new_mat;
+}
+cv::Mat cOpencvUtil::ConvertEigenVecFloatToOpencv(const tVectorXf &mat)
+{
+    cv::Mat new_mat;
+    cv::eigen2cv(mat, new_mat);
+    return new_mat;
+}
 
 tVectorXd cOpencvUtil::ConvertOpencvToEigenVec(const cv::Mat &mat)
 {
     tVectorXd new_mat;
+    cv::cv2eigen(mat, new_mat);
+    return new_mat;
+}
+tVectorXf cOpencvUtil::ConvertOpencvToEigenVecFloat(const cv::Mat &mat)
+{
+    tVectorXf new_mat;
     cv::cv2eigen(mat, new_mat);
     return new_mat;
 }
@@ -102,7 +120,13 @@ tMatrixXd cOpencvUtil::ConvertOpencvToEigenMat(const cv::Mat &mat)
     cv::cv2eigen(mat, new_mat);
     return new_mat;
 }
+tMatrixXf cOpencvUtil::ConvertOpencvToEigenMatFloat(const cv::Mat &mat)
+{
 
+    tMatrixXf new_mat;
+    cv::cv2eigen(mat, new_mat);
+    return new_mat;
+}
 std::string cOpencvUtil::type2str(int type)
 {
     std::string r;

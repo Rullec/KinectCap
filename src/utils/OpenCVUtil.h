@@ -11,9 +11,13 @@ public:
 
     static cv::Mat ConvertEigenMatToOpencv(const tMatrixXd &mat);
     static cv::Mat ConvertEigenVecToOpencv(const tVectorXd &mat);
+    static cv::Mat ConvertEigenMatFloatToOpencv(const tMatrixXf &mat);
+    static cv::Mat ConvertEigenVecFloatToOpencv(const tVectorXf &mat);
 
     static tVectorXd ConvertOpencvToEigenVec(const cv::Mat &mat);
+    static tVectorXf ConvertOpencvToEigenVecFloat(const cv::Mat &mat);
     static tMatrixXd ConvertOpencvToEigenMat(const cv::Mat &mat);
+    static tMatrixXf ConvertOpencvToEigenMatFloat(const cv::Mat &mat);
     static std::string type2str(int type);
     static tVector2i GetOpencvMatSize(const cv::Mat &mat);
 };

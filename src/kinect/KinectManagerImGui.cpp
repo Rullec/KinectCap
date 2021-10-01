@@ -5,6 +5,7 @@
 #include "utils/TimeUtil.hpp"
 #include "utils/PoseEstimator.h"
 #include "kinect/KinectResource.h"
+#include "render/ColorDepthFixer.h"
 #include <iostream>
 const std::vector<const char *> gDisplayModeStr =
     {"only_color",
@@ -32,7 +33,8 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
     mUndistortDepthDiff = std::make_shared<cKinectImageResource>();
     mUndistortColorDiff = std::make_shared<cKinectImageResource>();
     mDepthFixed = std::make_shared<cKinectImageResource>();
-    mColorFixed = std::make_shared<cKinectImageResource>();
+    mDepthFixedRemoval = std::make_shared<cKinectImageResource>();
+
     mEnableDownsample = true;
     mEnablePoseEstimate = false;
     mEnableShowRaycast = false;
@@ -43,8 +45,10 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
     mRaycastFov = 60;
     mDepthAdjustBias = 0;
     mEnableCompareDistort = false;
-    mEnableDepthFix = false;
+    mEnableDepthFix = true;
     mEnableWindowed = true;
+    mEnableDepthRemoval = true;
+    mDepthRemovalValue_mm = 1000;
     mWindowSt[0] = 90 * 2;
     mWindowSt[1] = 200 * 2;
     mWindowSize[0] = 240 * 2;
@@ -152,7 +156,13 @@ void cKinectManagerImGui::UpdateGui()
     if (mEnableWindowed)
     {
         ImGui::SameLine();
-        ImGui::Checkbox("enable depth fix", &mEnableDepthFix);
+        mEnableDepthFix = ImGui::Button("refresh depth fix");
+        ImGui::SameLine();
+        ImGui::Checkbox("enable depth removal", &mEnableDepthRemoval);
+        if (mEnableDepthRemoval)
+        {
+            ImGui::DragInt("depth removal", &mDepthRemovalValue_mm, 1, 300, 1000);
+        }
         ImGui::DragInt2("window start", mWindowSt.data());
     }
     if (mEnableShowRaycast)
@@ -229,6 +239,7 @@ void cKinectManagerImGui::ExportCapture()
         std::string depth_txt_name = gOutputImagedir + "/depth" + std::to_string(gOutputImageIdx) + ".txt";
         std::string color_png_name = gOutputImagedir + "/color" + std::to_string(gOutputImageIdx) + ".png";
         std::string conf_name = gOutputImagedir + "/conf" + std::to_string(gOutputImageIdx) + ".txt";
+
         if (mCurDepthImage->mRawHeight != 0)
         {
             ExportDepthToPng(mCurDepthImage->mRawData.data(), mCurDepthImage->mRawHeight, mCurDepthImage->mRawWidth, mCurDepthImage->mChannels, depth_png_name);
@@ -238,6 +249,69 @@ void cKinectManagerImGui::ExportCapture()
         if (mCurColorImage->mRawHeight != 0)
             ExportRGBColorToPng(mCurColorImage->mRawData.data(),
                                 mCurColorImage->mRawHeight, mCurColorImage->mRawWidth, mCurColorImage->mChannels, color_png_name);
+        if (mEnableWindowed == true)
+        {
+            std::string window_color_png_name = gOutputImagedir + "/window_color" + std::to_string(gOutputImageIdx) + ".png";
+            std::string window_depth_txt_name = gOutputImagedir + "/window_depth" + std::to_string(gOutputImageIdx) + ".txt";
+            std::string window_depth_png_name = gOutputImagedir + "/window_depth" + std::to_string(gOutputImageIdx) + ".png";
+            std::string window_depth_fixed_txt_name = gOutputImagedir + "/window_depth_fixed" + std::to_string(gOutputImageIdx) + ".txt";
+            std::string window_depth_fixed_png_name = gOutputImagedir + "/window_depth_fixed" + std::to_string(gOutputImageIdx) + ".png";
+            std::string window_depth_fixed_removal_txt_name = gOutputImagedir + "/window_depth_fixed_removal" + std::to_string(gOutputImageIdx) + ".txt";
+            std::string window_depth_fixed_removal_png_name = gOutputImagedir + "/window_depth_fixed_removal" + std::to_string(gOutputImageIdx) + ".png";
+
+            std::string window_conf_name = gOutputImagedir + "/window_conf" + std::to_string(gOutputImageIdx) + ".txt";
+            // 1. get windowed color data, export
+            cv::Mat window_color = mCurColorImage->ConvertToOpencvPresented(mWindowSt, mWindowSize);
+            cKinectImageResourcePtr tmp_res = std::make_shared<cKinectImageResource>();
+            tmp_res->ConvertFromOpencv(window_color, false);
+            ExportRGBColorToPng(
+                tmp_res->mRawData.data(),
+                tmp_res->mRawHeight, tmp_res->mRawWidth, tmp_res->mChannels, window_color_png_name);
+            printf("export window rgb png to %s\n", window_color_png_name.c_str());
+            // 2. get windowed depth data, export
+            cv::Mat window_depth = mCurDepthImage->ConvertToOpencvPresented(mWindowSt, mWindowSize);
+            tmp_res->ConvertFromOpencv(window_depth, false);
+            ExportDepthToTxt(
+                tmp_res->mRawData.data(),
+                tmp_res->mRawHeight, tmp_res->mRawWidth, tmp_res->mChannels, window_depth_txt_name);
+            ExportDepthToPng(
+                tmp_res->mRawData.data(),
+                tmp_res->mRawHeight, tmp_res->mRawWidth, tmp_res->mChannels, window_depth_png_name);
+            printf("export window depth txt/png to %s\n", window_depth_txt_name.c_str());
+            // cv::imshow("color", window_color);
+            // cv::imshow("depth", window_depth);
+            // cv::waitKey(0);
+            // exit(1);
+            // 2. get the depth image
+            // cv::Mat window_depth = mCurDepthImage->ConvertToOpencvPresented(mWindowSt, mWindowSize);
+            // Y = 0.299 R + 0.587 G + 0.114 B
+            cv::cvtColor(window_depth, window_depth, CV_RGB2GRAY);
+            // 3. do the fix
+            // cTimeUtil::Begin("fix");
+            cv::Mat fixed_depth = cColorDepthFixer::FixColorDepth(window_color, window_depth);
+            cv::cvtColor(fixed_depth, fixed_depth, CV_GRAY2RGB);
+            fixed_depth.convertTo(fixed_depth, CV_8UC3);
+
+            mDepthFixed->ConvertFromOpencv(fixed_depth, false);
+            ExportDepthToTxt(
+                mDepthFixed->mRawData.data(),
+                mDepthFixed->mRawHeight, mDepthFixed->mRawWidth, mDepthFixed->mChannels, window_depth_fixed_txt_name);
+            ExportDepthToPng(
+                mDepthFixed->mRawData.data(),
+                mDepthFixed->mRawHeight, mDepthFixed->mRawWidth, mDepthFixed->mChannels, window_depth_fixed_png_name);
+            printf("export fixed window depth txt/png to %s\n", window_depth_fixed_txt_name.c_str());
+
+            // export removal depth
+            ExportDepthToPng(
+                mDepthFixedRemoval->mRawData.data(),
+                mDepthFixedRemoval->mRawHeight, mDepthFixedRemoval->mRawWidth, mDepthFixedRemoval->mChannels, window_depth_fixed_removal_png_name);
+            ExportDepthToPng(
+                mDepthFixedRemoval->mRawData.data(),
+                mDepthFixedRemoval->mRawHeight, mDepthFixedRemoval->mRawWidth, mDepthFixedRemoval->mChannels, window_depth_fixed_removal_txt_name);
+            printf("export fixed removal window depth txt/png to %s\n", window_depth_fixed_removal_txt_name.c_str());
+            ExportWindowConfiguration(window_conf_name);
+            printf("export window info to %s\n", window_conf_name.c_str());
+        }
         ExportKinectConfiguration(conf_name);
         SIM_INFO("depth png {}, depth txt {}, color png {}, kinect conf {}",
                  depth_png_name,
@@ -271,7 +345,28 @@ void cKinectManagerImGui::ExportKinectConfiguration(std::string output_name)
     fout << "captured at " << cTimeUtil::GetSystemTime() << std::endl;
     fout.close();
 }
-
+void cKinectManagerImGui::ExportWindowConfiguration(std::string outputname)
+{
+    std::ofstream fout(outputname, 'w');
+    cKinectImageResourcePtr output = nullptr;
+    if (mCurDepthImage->mRawHeight != 0)
+    {
+        output = mCurDepthImage;
+    }
+    else if (mCurColorImage->mRawHeight != 0)
+    {
+        output = mCurColorImage;
+    }
+    else
+    {
+        std::cout << "ExportWindowConfiguration failed, cuz there are no info available\n";
+        return;
+    }
+    fout << "image size = " << output->mPresentHeight << " " << output->mPresentWidth << " enabled downsample = " << mEnableDownsample << std::endl;
+    fout << "window start = " << this->mWindowSt.transpose() << std::endl;
+    fout << "window size = " << mWindowSize.transpose() << std::endl;
+    fout.close();
+}
 cKinectImageResourcePtr cKinectManagerImGui::GetDepthImageNew()
 {
     if (mDepthMode == K4A_DEPTH_MODE_OFF)
@@ -375,9 +470,49 @@ std::vector<cKinectImageResourcePtr> cKinectManagerImGui::GetRenderingResource()
             std::cout << "ready to fix\n";
             // 1. get the color image
 
+            cv::Mat window_color = mCurColorImage->ConvertToOpencvPresented(mWindowSt, mWindowSize);
+            // std::cout << "get window color succ, size = " << window_color.rows << " " << window_color.cols << std::endl;
+            // std::cout << "get window depth succ, size = " << window_depth.rows << " " << window_depth.cols << std::endl;
+
+            // cv::imshow("color", window_color);
+            // cv::imshow("depth", window_depth);
+            // cv::waitKey(0);
+            // exit(1);
             // 2. get the depth image
+            cv::Mat window_depth = mCurDepthImage->ConvertToOpencvPresented(mWindowSt, mWindowSize);
+            // Y = 0.299 R + 0.587 G + 0.114 B
+            cv::cvtColor(window_depth, window_depth, CV_RGB2GRAY);
             // 3. do the fix
+            // cTimeUtil::Begin("fix");
+            cv::Mat fixed_depth = cColorDepthFixer::FixColorDepth(window_color, window_depth);
+            cv::cvtColor(fixed_depth, fixed_depth, CV_GRAY2RGB);
+            fixed_depth.convertTo(fixed_depth, CV_8UC3);
+
+            mDepthFixed->ConvertFromOpencv(fixed_depth, false);
+            // cTimeUtil::End("fix");
+            // cv::imshow("color", window_color);
+            // cv::imshow("depth", window_depth);
+            // cv::imshow("fixed depth", fixed_depth);
+            // cv::waitKey(0);
+
             // 4. restore back the depth buffer
+        }
+
+        if (mDepthFixed->mPresentHeight != 0 && mEnableDepthRemoval == true)
+        {
+            // if depth removal is enabled, and depth fixed is true
+            // mDepthRemoval = mDepthFixed
+            // then apply the removal mask
+            mDepthFixedRemoval->ConvertFromAnotherResource(mDepthFixed);
+            mDepthFixedRemoval->ApplyValueMask(this->mDepthRemovalValue_mm / 1000.0);
+        }
+    }
+    if (mDepthFixed->mPresentHeight != 0)
+    {
+        res.push_back(mDepthFixed);
+        if (mEnableDepthRemoval)
+        {
+            res.push_back(mDepthFixedRemoval);
         }
     }
     if (mDebugDrawChessboard == true && mDebugChessboardResource->mPresentHeight != 0)

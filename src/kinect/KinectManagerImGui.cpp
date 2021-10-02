@@ -50,7 +50,7 @@ cKinectManagerImGui::cKinectManagerImGui(std::string display_mode)
     mEnableDepthRemoval = true;
     mDepthRemovalValue_mm = 1000;
     mWindowSt[0] = 90 * 2;
-    mWindowSt[1] = 200 * 2;
+    mWindowSt[1] = 120 * 2;
     mWindowSize[0] = 240 * 2;
     mWindowSize[1] = 360 * 2;
     InitRaycastDepthImage();

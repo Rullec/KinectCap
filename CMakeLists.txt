@@ -99,8 +99,10 @@ set(libs utils_lib imgui_lib kinect_lib raycast_lib render_lib ${GL_LIBS} ${Open
 
 add_executable(main ./src/main.cpp)
 target_link_libraries(main ${libs} k4a)
-# add_executable(main ./calib/main_calib.cpp ./calib/OpenCVUtil.cpp)
-target_link_libraries(main ${libs})
+
+add_executable(2calib ./src/2calib.cpp)
+target_link_libraries(2calib ${libs} k4a)
+
 
 if(WIN32)
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
@@ -124,5 +126,29 @@ else()
         COMMAND ${CMAKE_COMMAND} -E rename
             ${CMAKE_CURRENT_BINARY_DIR}/main        
             ${CMAKE_SOURCE_DIR}/main    
+    )
+endif()
+if(WIN32)
+    if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+        add_custom_command(
+            TARGET 2calib POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rename
+                ${CMAKE_CURRENT_BINARY_DIR}/Debug/2calib.exe
+                ${CMAKE_SOURCE_DIR}/2calib.exe
+        )
+    else()
+        add_custom_command(
+            TARGET 2calib POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E rename
+                ${CMAKE_CURRENT_BINARY_DIR}/Release/2calib.exe
+                ${CMAKE_SOURCE_DIR}/2calib.exe
+        )
+    endif()
+else()
+    add_custom_command(
+        TARGET 2calib POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E rename
+            ${CMAKE_CURRENT_BINARY_DIR}/2calib        
+            ${CMAKE_SOURCE_DIR}/2calib    
     )
 endif()

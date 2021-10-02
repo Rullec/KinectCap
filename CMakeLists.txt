@@ -101,7 +101,7 @@ add_executable(main ./src/main.cpp)
 target_link_libraries(main ${libs} k4a)
 
 add_executable(2calib ./src/2calib.cpp)
-target_link_libraries(2calib ${libs} k4a)
+target_link_libraries(2calib ${libs} k4a nlopt)
 
 
 if(WIN32)
